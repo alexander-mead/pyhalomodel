@@ -16,5 +16,5 @@ Include the path to the `modules` folder in your python path, e.g.
 There are several jupyter notebooks in the `notebooks` folder giving examples of how to do your own Halo Model predictions. As a bonus you can see how all the plots in the review paper have been produced
 
 ## Citation
-Please add a citation to Asgari,Heymans and Mead (2022) if you use this code.
+Please add a citation to `Asgari,Heymans and Mead (2022)` if you use this code.
 
