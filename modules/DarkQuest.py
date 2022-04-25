@@ -6,8 +6,6 @@ from dark_emulator import darkemu
 
 # My imports
 import constants as const
-# import general as general
-# import cosmology as cosmo
 import utility_functions as utility
 
 # Constants

@@ -458,7 +458,6 @@ def _I_beta(hmod, beta, Ms, nus, Wu, Wv, massu, massv, A):
     TODO: Loops probably horribly inefficient here
     '''
     from numpy import trapz
-    from calculus import trapz2d
     integrand = np.zeros((len(nus), len(nus)))
     for iM1, nu1 in enumerate(nus):
         for iM2, nu2 in enumerate(nus):
@@ -474,7 +473,7 @@ def _I_beta(hmod, beta, Ms, nus, Wu, Wv, massu, massv, A):
                 integrand[iM1, iM2] = beta[iM1, iM2]*W1*W2*g1*g2*b1*b2/(M1*M2)
             else:
                 integrand[iM1, iM2] = integrand[iM2, iM1]
-    integral = trapz2d(integrand, nus, nus)
+    integral = utility.trapz2d(integrand, nus, nus)
     if do_I11 and massu and massv:
         integral += (A**2)*Wu[0]*Wv[0]/Ms[0]**2
     if do_I12I21 and massu:
@@ -825,24 +824,6 @@ def HOD_simple(M, Mmin, Msat, alpha):
     Nc = np.heaviside(M-Mmin, 1.)
     Ns = Nc*(M/Msat)**alpha
     return (Nc, Ns)
-
-# def HOD_Zheng(M, Mmin=1e12, sigma=0.15, M0=1e12, M1=1e13, alpha=1.):
-#     '''
-#     HOD model from Zheng et al. (2005)
-#     Returns mean number of central and satellite galaxies
-#     Imposing the 'central condition' can make the mean Ns returned not actually be the mean
-#     '''
-#     from scipy.special import erf
-#     if sigma == 0.:
-#         Nc = np.heaviside(M-Mmin, 1.)
-#     else:
-#         Nc = 0.5*(1.+erf(np.log10(M/Mmin)/sigma))
-#     if M < M0:
-#         Ns = 0.
-#     else:
-#         Ns = ((M-M0)/M1)**alpha # Should be insensitive to the H(x=0) value
-#     return (Nc, Ns)
-# HOD_Zheng = np.vectorize(HOD_Zheng) # Because of M < M0 line
 
 
 def HOD_Zheng(M, Mmin=1e12, sigma=0.15, M0=1e12, M1=1e13, alpha=1.):

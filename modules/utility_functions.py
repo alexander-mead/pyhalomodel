@@ -1,7 +1,6 @@
 # Utility functions for the Halo Model calculations
 
 import numpy as np
-import camb
 import constants as const
 import scipy.integrate as integrate
 
@@ -240,4 +239,13 @@ def logspace(xmin, xmax, nx):
     '''
     from numpy import logspace, log10
     return logspace(log10(xmin), log10(xmax), nx)
+
+def trapz2d(F, x, y):
+    # Two-dimensional trapezium rule
+    # First integrates along x for each y, and then y
+    from numpy import zeros, trapz
+    Fmid = zeros((len(y)))
+    for iy, _ in enumerate(y):
+        Fmid[iy] = trapz(F[:, iy], x)
+    return trapz(Fmid, y)
 
