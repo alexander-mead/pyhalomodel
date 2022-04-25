@@ -9,6 +9,7 @@ These are the external libraries that you'll need to install for this pipe to ru
 
 ## Usage
 Include the path to the `modules` folder in your python path, e.g.
+
 `export PYTHONPATH="YOUR/PATH/TO/halomodel_review_pipe/modules/"`
 
 ## Notebooks
