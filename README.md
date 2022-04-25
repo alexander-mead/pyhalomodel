@@ -3,7 +3,7 @@ This is the pipeline that comes with Asgari,Heymans and Mead (2022) Halo Model r
 
 ## Dependencies
 These are the external libraries that you'll need to install for this pipe to run: 
-* [CMB](https://camb.readthedocs.io/en/latest/)
+* [CAMB](https://camb.readthedocs.io/en/latest/)
 * [Dark Emulator](https://pypi.org/project/dark-emulator/)
 * [pyHMcode](https://pypi.org/project/pyhmcode/)
 
