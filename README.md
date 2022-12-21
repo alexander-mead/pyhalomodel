@@ -5,7 +5,6 @@ This is the pipeline that comes with Asgari, Heymans and Mead (2022) Halo Model 
 These are the external libraries that you'll need to install for this pipe to run: 
 * [CAMB](https://camb.readthedocs.io/en/latest/)
 * [Dark Emulator](https://pypi.org/project/dark-emulator/)
-* [pyHMcode](https://pypi.org/project/pyhmcode/)
 
 ## Usage
 Include the path to the `modules` folder in your python path, e.g.
