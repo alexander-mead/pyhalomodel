@@ -912,4 +912,30 @@ def HOD_variance(p, lam, central_condition=True):
         vcs = 0.  # No covariance
     return (vcc, vss, vcs)
 
+# Supported methods are “linear”, “nearest”, “slinear”, “cubic”, and “quintic”
+def RegularGridInterp_beta_NL(Ms_in, ks_in,beta_NL_in,Ms_out,ks_out ,method='linear'):
+    from scipy.interpolate import RegularGridInterpolator
+    bnl_interp = RegularGridInterpolator([Ms_in, Ms_in, np.log(ks_in)], beta_NL_in,
+        method=method, fill_value=None, bounds_error=False)
+    bnl_out = np.zeros((Ms_out.size, Ms_out.size, ks_out.size))
+    indices = np.vstack(np.meshgrid(np.arange(Ms_out.size),np.arange(Ms_out.size),np.arange(ks_out.size), 
+                                    copy = False)).reshape(3,-1).T
+    values = np.vstack(np.meshgrid(Ms_out, Ms_out, np.log(ks_out), 
+                                   copy = False)).reshape(3,-1).T
+    bnl_out[indices[:,0], indices[:,1], indices[:,2]] = bnl_interp(values)
+    return bnl_out  
+
+# Supported methods are “linear”, “nearest”, “slinear”, “cubic”, and “quintic”
+def RegularGridInterp_beta_NL_log(Ms_in, ks_in,beta_NL_in,Ms_out,ks_out ,method='linear'):
+    from scipy.interpolate import RegularGridInterpolator
+    bnl_interp = RegularGridInterpolator([np.log10(Ms_in), np.log10(Ms_in), np.log(ks_in)], beta_NL_in,
+        method=method, fill_value=None, bounds_error=False)
+    bnl_out = np.zeros((Ms_out.size, Ms_out.size, ks_out.size))
+    indices = np.vstack(np.meshgrid(np.arange(Ms_out.size),np.arange(Ms_out.size),np.arange(ks_out.size), 
+                                    copy = False)).reshape(3,-1).T
+    values = np.vstack(np.meshgrid(np.log10(Ms_out), np.log10(Ms_out), np.log(ks_out), 
+                                   copy = False)).reshape(3,-1).T
+    bnl_out[indices[:,0], indices[:,1], indices[:,2]] = bnl_interp(values)
+    return bnl_out  
+
 ### ###
