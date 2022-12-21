@@ -137,11 +137,12 @@ def Radius_M(M, Om_m):
 	'''
 	return np.cbrt(3.*M/(4.*np.pi*comoving_matter_density(Om_m)))
 
+
 def Mass_R(R, Om_m):
-	'''
-	Mass contained within a sphere of radius 'R' in a homogeneous universe
-	'''
-	return Mass_R(R, Om_m)
+    '''
+    Mass contained within a sphere of radius 'R' in a homogeneous universe
+    '''
+    return (4./3.)*np.pi*R**3*comoving_matter_density(Om_m)
 
 def comoving_matter_density(Om_m):
 	'''
@@ -248,4 +249,8 @@ def trapz2d(F, x, y):
     for iy, _ in enumerate(y):
         Fmid[iy] = trapz(F[:, iy], x)
     return trapz(Fmid, y)
+
+def findClosestIndex(x,arr):
+    index = (np.abs(arr - x)).argmin()
+    return index,arr[index]
 

@@ -121,7 +121,8 @@ class halomod():
             if not isclose(dc, 1.686, rel_tol=dc_rel_tol):
                 warnings.warn('dc = 1.686 assumed in Tinker et al. (2010)', RuntimeWarning)
             # Mass function from Table 4
-            logDv = np.log(self.Dv); logDv_array = np.log(Dv_array)
+            logDv = np.log(self.Dv)
+            logDv_array = np.log(Dv_array)
             alpha_array = np.array([0.368, 0.363, 0.385, 0.389, 0.393, 0.365, 0.379, 0.355, 0.327])
             beta_array = np.array([0.589, 0.585, 0.544, 0.543, 0.564, 0.623, 0.637, 0.673, 0.702])
             gamma_array = np.array([0.864, 0.922, 0.987, 1.09, 1.20, 1.34, 1.50, 1.68, 1.81])
@@ -328,7 +329,7 @@ def mean_hm(hmod, Ms, fs, sigmas=None, sigma=None, Pk_lin=None):
     integrand = (fs/Ms)*hmod.halo_mass_function(nus)
     return halo_integration(integrand, nus)*utility.comoving_matter_density(hmod.Om_m)
 
-def Pk_hm(hmod, Ms, ks, profs, Pk_lin, beta=None, sigmas=None, sigma=None, shot=False, discrete=True, verbose=False):
+def Pk_hm(hmod, Ms, ks, profs, Pk_lin, beta=None, sigmas=None, sigma=None, shot=False, discrete=True, trunc_1halo=False, k_star=0.1 ,verbose=False):
     '''
     TODO: Remove Pk_lin dependence?
     Inputs
@@ -407,7 +408,10 @@ def Pk_hm(hmod, Ms, ks, profs, Pk_lin, beta=None, sigmas=None, sigma=None, shot=
                     elif (not discrete) and (not shot):
                         warnings.warn('Warning: Subtracting shot noise while not treating discreteness properly is dangerous', RuntimeWarning)
                         Pk_1h_array[u, v, :] -= PSNs[u] # Need to subtract shot noise
-                Pk_hm_array[u, v, :] = Pk_2h_array[u, v, :]+Pk_1h_array[u, v, :] # Total
+                if trunc_1halo:
+                    Pk_hm_array[u, v, :] = Pk_2h_array[u, v, :]+Pk_1h_array[u, v, :] * (1.-np.exp(-(ks/k_star)**2.)) # Total
+                else:
+                    Pk_hm_array[u, v, :] = Pk_2h_array[u, v, :]+Pk_1h_array[u, v, :] # Total
             else:
                 # No need to do these calculations twice
                 Pk_2h_array[u, v, :] = Pk_2h_array[v, u, :]
@@ -419,6 +423,7 @@ def Pk_hm(hmod, Ms, ks, profs, Pk_lin, beta=None, sigmas=None, sigma=None, shot=
         print('Halomodel calculation time [s]:', t2-t1, '\n')
 
     return (Pk_2h_array, Pk_1h_array, Pk_hm_array)
+
 
 def _P_2h(hmod, Pk_lin, k, Ms, nus, Wu, Wv, mass_u, mass_v, A, beta=None):
     '''
@@ -452,6 +457,7 @@ def _I_2h(hmod, Ms, nus, W, mass, A):
     I_2h = I_2h*utility.comoving_matter_density(hmod.Om_m)
     return I_2h
 
+
 def _I_beta(hmod, beta, Ms, nus, Wu, Wv, massu, massv, A):
     '''
     Evaluates the beta_NL double integral
@@ -475,7 +481,7 @@ def _I_beta(hmod, beta, Ms, nus, Wu, Wv, massu, massv, A):
                 integrand[iM1, iM2] = integrand[iM2, iM1]
     integral = utility.trapz2d(integrand, nus, nus)
     if do_I11 and massu and massv:
-        integral += (A**2)*Wu[0]*Wv[0]/Ms[0]**2
+        integral += beta[0, 0]*(A**2)*Wu[0]*Wv[0]/Ms[0]**2
     if do_I12I21 and massu:
         integrand = np.zeros(len(nus))
         for iM, nu in enumerate(nus):
@@ -601,11 +607,42 @@ def interpolate_beta_NL(ks, Ms, Ms_small, beta_NL_small, fill_value):
     '''
     Interpolate beta_NL from a small grid to a large grid for halo-model calculations
     TODO: Remove inefficient loops
+    TODO: Add more interesting extrapolations. Currently just nearest neighbour, 
+    which means everything outside the range is set to the same value
     '''
     from scipy.interpolate import interp2d
     beta_NL = np.zeros((len(Ms), len(Ms), len(ks))) # Numpy array for output
     for ik, _ in enumerate(ks):
-        beta_NL_interp = interp2d(np.log(Ms_small), np.log(Ms_small), beta_NL_small[:, :, ik], kind='linear', fill_value=fill_value)
+        beta_NL_interp = interp2d(np.log(Ms_small), np.log(Ms_small), beta_NL_small[:, :, ik]
+            , kind='linear', fill_value=fill_value)
+        for iM1, M1 in enumerate(Ms):
+            for iM2, M2 in enumerate(Ms):
+                beta_NL[iM1, iM2, ik] = beta_NL_interp(np.log(M1), np.log(M2))
+    return beta_NL
+
+# from the cosmosis module
+def RegularGridInterp_beta_NL(Ms_in, ks_in,beta_NL_in,Ms_out,ks_out ,method='linear'):
+    from scipy.interpolate import RegularGridInterpolator
+    bnl_interp = RegularGridInterpolator([np.log10(Ms_in), np.log10(Ms_in), np.log10(ks_in)], beta_NL_in,
+        method=method, fill_value=None, bounds_error=False)
+    bnl_out= np.zeros((Ms_out.size, Ms_out.size, ks_out.size))
+    indices = np.vstack(np.meshgrid(np.arange(Ms_out.size),np.arange(Ms_out.size),np.arange(ks_out.size), copy = False)).reshape(3,-1).T
+    values = np.vstack(np.meshgrid(np.log10(Ms_out), np.log10(Ms_out), np.log10(ks_out), copy = False)).reshape(3,-1).T
+    bnl_out[indices[:,0], indices[:,1], indices[:,2]] = bnl_interp(values)
+    return bnl_out    
+
+def interpolate_beta_NL_efficient(ks, Ms, Ms_small, beta_NL_small, fill_value):
+    '''
+    Interpolate beta_NL from a small grid to a large grid for halo-model calculations
+    TODO: Remove inefficient loops
+    TODO: Add more interesting extrapolations. Currently just nearest neighbour, 
+    which means everything outside the range is set to the same value
+    '''
+    from scipy.interpolate import interp2d
+    beta_NL = np.zeros((len(Ms), len(Ms), len(ks))) # Numpy array for output
+    for ik, _ in enumerate(ks):
+        beta_NL_interp = interp2d(np.log(Ms_small), np.log(Ms_small), beta_NL_small[:, :, ik]
+            , kind='linear', fill_value=fill_value)
         for iM1, M1 in enumerate(Ms):
             for iM2, M2 in enumerate(Ms):
                 beta_NL[iM1, iM2, ik] = beta_NL_interp(np.log(M1), np.log(M2))

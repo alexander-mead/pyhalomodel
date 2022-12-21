@@ -62,10 +62,6 @@ high_fac = 0.85
 ibias_BNL = 2
 
 # Force to zero at large scales?
-# 0 - No
-# 1 - Yes, via addative correction
-# 2 - Yes, via multiplicative correction
-force_zero_BNL = 0
 
 # Large 'linear' scale [h/Mpc]
 klin_BNL = 0.02
@@ -191,29 +187,6 @@ def named_cosmology(name):
     # Create my version of the Dark Quest cosmology object
     cpar = cosmology(wb=wb, wc=wc, Om_w=Om_w, lnAs=lnAs, ns=ns, w=w)
     return cpar
-
-# def create_mead_cosmology(cpar, verbose=False):
-#     '''
-#     Create a set of Mead cosmological parameters from a Dark Quest set
-#     '''
-#     # Make a Mead cosmology
-#     cosm = cosmo.cosmology(Om_m=cpar.Om_m, Om_b=cpar.Om_b, Om_w=cpar.Om_w, h=cpar.h, 
-#                            As=cpar.As, ns=cpar.ns, w=cpar.w, m_nu=cpar.m_nu)
-#     if verbose: cosm.print()
-#     return cosm
-
-# def convert_mead_cosmology(cosm):
-#     '''
-#     Convert Mead cosmology into a Dark Quest cosmology
-#     '''
-#     wb = cosm.w_b
-#     wc = cosm.w_c
-#     Om_w = cosm.Om_w
-#     lnAs = np.log(cosm.As*1e10)
-#     ns = cosm.ns
-#     w = cosm.w
-#     cpar = cosmology(wb=wb, wc=wc, Om_w=Om_w, lnAs=lnAs, ns=ns, w=w)
-#     return  cpar
 
 def init_emulator(cpar):
     '''
@@ -563,15 +536,14 @@ def R_hh(emu, ks, M1, M2, z):
 
 ### Non-linear halo bias ###
 
-def get_beta_NL(emu, mass, ks, z, mass_variable='Mass'):
+def get_beta_NL(emu, mass, ks, z,force_to_zero=0, mass_variable='Mass',knl  = 5.0):
     '''
     Beta_NL function, function: B^NL(M1, M2, k)
     TODO: Change to accept two separate mass arguments and merge with beta_NL_1D?
     '''
     # Parameters
-    force_to_zero = force_zero_BNL
     klin = np.array([klin_BNL]) # klin must be a numpy array
-
+    
     # Set array name sensibly
     if mass_variable == 'Mass':
         Ms = mass
@@ -587,6 +559,8 @@ def get_beta_NL(emu, mass, ks, z, mass_variable='Mass'):
     # Linear power
     Pk_lin = emu.get_pklin_from_z(ks, z)
     Pk_klin = emu.get_pklin_from_z(klin, z)
+    index_klin, klin_closest = utility.findClosestIndex(klin,ks)
+    index_knl,knl_closest = utility.findClosestIndex(knl,ks)
     
     # Calculate beta_NL by looping over mass arrays
     beta = np.zeros((len(Ms), len(Ms), len(ks)))
@@ -602,18 +576,34 @@ def get_beta_NL(emu, mass, ks, z, mass_variable='Mass'):
                 # Create beta_NL
                 b2 = get_linear_halo_bias(emu, M2, z, klin, Pk_klin)
                 Pk_hh = emu.get_phh_mass(ks, M1, M2, z)
-                beta[iM1, iM2, :] = -1.+Pk_hh/(b1*b2*Pk_lin)
+                beta[iM1, iM2, :] = Pk_hh/(b1*b2*Pk_lin)-1.
 
                 # Force Beta_NL to be zero at large scales if necessary
                 if force_to_zero != 0:
                     Pk_hh0 = emu.get_phh_mass(klin, M1, M2, z)
                     db = Pk_hh0/(b1*b2*Pk_klin)-1.
                     if force_to_zero == 1:
-                        beta[iM1, iM2, :] = beta[iM1, iM2, :]-db # Addative correction
+                        beta[iM1, iM2, :] = beta[iM1, iM2, :]-db # Additive correction
                     elif force_to_zero == 2:
                         beta[iM1, iM2, :] = (beta[iM1, iM2, :]+1.)/(db+1.)-1. # Multiplicative correction
+                    elif force_to_zero == 3:
+                        # print('setting beta_nl=beta_nl(k='+'%0.3f' % klin_closest+') for k<'+ '%0.3f' % klin_closest)
+                        beta[iM1, iM2, :index_klin] = beta[iM1, iM2, index_klin] # for k<klin use the value for klin or the closest to that
+                    elif force_to_zero == 4:
+                        # print('setting beta_nl=0 for k<'+ '%0.3f' % klin_closest)
+                        beta[iM1, iM2, :index_klin] = 0.0 # for k<klin set all values to zero
+                        # beta[iM1, iM2, index_knl:] = 0.0 
+                    elif force_to_zero == 5:
+                        beta[iM1, iM2, :] = beta[iM1, iM2, :]*(1.-np.exp(-(ks/klin)**2.)) #Smoothly go to zero at k~klin
+                    elif force_to_zero == 6:
+                        # like 5 but with dependence on M1 and M2
+                        if (iM1 == iM2) or (np.log10(M2/M1)<1):
+                            truncate_bnl= (1.-np.exp(-(ks/klin)))
+                        else:
+                            truncate_bnl= (1.-np.exp(-(ks/klin)*np.log10(M2/M1)))
+                        beta[iM1, iM2, :] = beta[iM1, iM2, :]*truncate_bnl #Change to smoothly going to zero
                     else:
-                        raise ValueError('force_BNL_zero not set correctly')
+                        raise ValueError('force_to_zero not set correctly, choose from 0-6')
 
             else:
 
@@ -622,13 +612,12 @@ def get_beta_NL(emu, mass, ks, z, mass_variable='Mass'):
          
     return beta 
 
-def get_beta_NL_1D(emu, Mh, mass, ks, z, mass_variable='Mass'):
+def get_beta_NL_1D(emu, Mh, mass, ks, z, mass_variable='Mass',force_to_zero=0):
     '''
     One-dimensional Beta_NL function, function: B^NL(Mh, M, k)
     TODO: Change two-dimensional version to accept two separate mass arguments and get rid of this version
     '''
     # Parameters
-    force_to_zero = force_zero_BNL
     klin = np.array([klin_BNL]) # klin must be a numpy array
     Mmin = minimum_halo_mass(emu)
 
@@ -667,11 +656,18 @@ def get_beta_NL_1D(emu, Mh, mass, ks, z, mass_variable='Mass'):
                 Pk_hh0 = emu.get_phh_mass(klin, Mh, M, z)
                 db = Pk_hh0/(bh*b*Pk_klin)-1.
                 if force_to_zero == 1:
-                    beta[iM, :] = beta[iM, :]-db # Addative correction
+                    beta[iM, :] = beta[iM, :]-db  # Additive correction
                 elif force_to_zero == 2:
                     beta[iM, :] = (beta[iM, :]+1.)/(db+1.)-1. # Multiplicative correction
+                elif force_to_zero == 3:
+                    beta[iM, :index_klin] = beta[iM, index_klin] # for k<klin use the value for klin or the closest to that
+                elif force_to_zero == 4:
+                    beta[iM, :index_klin] = 0.0 # for k<klin set all values to zero
+                    # beta[iM1, iM2, index_knl:] = 0.0 
+                elif force_to_zero == 5:
+                    beta[iM, :] = beta[iM, :]*(1.-np.exp(-(ks/klin)**2.)) #Smoothly go to zero at k~klin
                 else:
-                    raise ValueError('force_BNL_zero not set correctly')
+                    raise ValueError('force_to_zero not set correctly, choose from 0-5')
 
     return beta 
 
