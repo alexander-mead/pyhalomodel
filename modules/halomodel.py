@@ -5,6 +5,7 @@ import warnings
 
 # My imports
 import utility_functions as utility
+import constants as const
 
 # Constants
 Dv0 = 18.*np.pi**2 # Delta_v = ~178, EdS halo virial overdensity
@@ -245,11 +246,13 @@ def _get_nus(Ms, dc, Om_m, sigmas=None, sigma=None, Pk_lin=None):
         raise ValueError('Error, you need to specify (at least) one of Pk_lin, sigma or sigmas') 
     return nus
 
+
 def virial_radius(M, Dv, Om_m):
     '''
     Halo virial radius based on the halo mass and overdensity condition
     '''
     return utility.Radius_M(M, Om_m)/np.cbrt(Dv)
+
 
 def dc_NakamuraSuto(Om_mz):
     '''
@@ -257,6 +260,7 @@ def dc_NakamuraSuto(Om_mz):
     Cosmology dependence is very weak
     '''
     return dc0*(1.+0.012299*np.log10(Om_mz))
+
 
 def Dv_BryanNorman(Om_mz):
     '''
@@ -279,14 +283,16 @@ def linear_halo_bias(hmod, Ms, sigmas=None, sigma=None, Pk_lin=None):
     nus = _get_nus(Ms, hmod.dc, hmod.Om_m, sigmas, sigma, Pk_lin)
     return hmod.linear_halo_bias(nus)
 
+
 def halo_mass_function(hmod, Ms, sigmas=None, sigma=None, Pk_lin=None):
     '''
     Calculates n(M), the halo mass function as a function of halo mass
     n(M) is the comoving number-density of haloes per halo mass
     '''
     F = halo_multiplicity_function(hmod, Ms, sigmas, sigma, Pk_lin)
-    rho = cosmo.comoving_matter_density(hmod.Om_m)
+    rho = utility.comoving_matter_density(hmod.Om_m)
     return F*rho/Ms**2
+
 
 def halo_multiplicity_function(hmod, Ms, sigmas=None, sigma=None, Pk_lin=None):
     '''
@@ -329,9 +335,11 @@ def mean_hm(hmod, Ms, fs, sigmas=None, sigma=None, Pk_lin=None):
     integrand = (fs/Ms)*hmod.halo_mass_function(nus)
     return halo_integration(integrand, nus)*utility.comoving_matter_density(hmod.Om_m)
 
-def Pk_hm(hmod, Ms, ks, profs, Pk_lin, beta=None, sigmas=None, sigma=None, shot=False, discrete=True, trunc_1halo=False, k_star=0.1 ,verbose=False):
+
+def Pk_hm(hmod, Ms, ks, profs, Pk_lin, beta=None, sigmas=None, sigma=None, shot=False, discrete=True, trunc_1halo=False, k_star=0.1, verbose=False):
     '''
     TODO: Remove Pk_lin dependence?
+    TODO: Combine trunc_1halo and k_star via None
     Inputs
     hmod - halomodel class
     ks - Array of wavenumbers [h/Mpc]
@@ -409,7 +417,7 @@ def Pk_hm(hmod, Ms, ks, profs, Pk_lin, beta=None, sigmas=None, sigma=None, shot=
                         warnings.warn('Warning: Subtracting shot noise while not treating discreteness properly is dangerous', RuntimeWarning)
                         Pk_1h_array[u, v, :] -= PSNs[u] # Need to subtract shot noise
                 if trunc_1halo:
-                    Pk_hm_array[u, v, :] = Pk_2h_array[u, v, :]+Pk_1h_array[u, v, :] * (1.-np.exp(-(ks/k_star)**2.)) # Total
+                    Pk_hm_array[u, v, :] = Pk_2h_array[u, v, :]+Pk_1h_array[u, v, :]*(1.-np.exp(-(ks/k_star)**2)) # Total
                 else:
                     Pk_hm_array[u, v, :] = Pk_2h_array[u, v, :]+Pk_1h_array[u, v, :] # Total
             else:
@@ -437,6 +445,7 @@ def _P_2h(hmod, Pk_lin, k, Ms, nus, Wu, Wv, mass_u, mass_v, A, beta=None):
     Iv = _I_2h(hmod, Ms, nus, Wv, mass_v, A)
     return Pk_lin(k)*(Iu*Iv+I_NL)
 
+
 def _P_1h(hmod, Ms, nus, WuWv):
     '''
     One-halo term at a specific wavenumber
@@ -445,6 +454,7 @@ def _P_1h(hmod, Ms, nus, WuWv):
     P_1h = halo_integration(integrand, nus)
     P_1h = P_1h*utility.comoving_matter_density(hmod.Om_m)
     return P_1h
+
 
 def _I_2h(hmod, Ms, nus, W, mass, A):
     '''
@@ -500,6 +510,7 @@ def _I_beta(hmod, beta, Ms, nus, Wu, Wv, massu, massv, A):
             integrand[iM] = beta[iM, 0]*W*g*b/M
         integral += (A*Wv[0]/Ms[0])*trapz(integrand, nus)
     return integral*utility.comoving_matter_density(hmod.Om_m)**2
+
 
 def Pk_hm_hu(hmod, Mh, Ms, ks, profs, Pk_lin, beta=None, sigmas=None, sigma=None, verbose=True):
     '''
@@ -568,6 +579,7 @@ def Pk_hm_hu(hmod, Mh, Ms, ks, profs, Pk_lin, beta=None, sigmas=None, sigma=None
 
     return (Pk_2h_array, Pk_1h_array, Pk_hm_array)
 
+
 def _P_2h_hu(hmod, Pk_lin, k, Ms, nuh, nus, Wk, mass, A, beta=None):
     '''
     Two-halo term for halo-u at a specific wavenumber
@@ -579,6 +591,7 @@ def _P_2h_hu(hmod, Pk_lin, k, Ms, nuh, nus, Wk, mass, A, beta=None):
     Ih = hmod.linear_halo_bias(nuh) # Simply the linear bias
     Iu = _I_2h(hmod, Ms, nus, Wk, mass, A) # Same as for the standard two-halo term
     return Pk_lin(k)*(Ih*Iu+I_NL)
+
 
 def _I_beta_hu(hmod, beta, Ms, nuh, nus, Wk, mass, A):
     '''
@@ -620,33 +633,33 @@ def interpolate_beta_NL(ks, Ms, Ms_small, beta_NL_small, fill_value):
                 beta_NL[iM1, iM2, ik] = beta_NL_interp(np.log(M1), np.log(M2))
     return beta_NL
 
-# from the cosmosis module
-def RegularGridInterp_beta_NL(Ms_in, ks_in,beta_NL_in,Ms_out,ks_out ,method='linear'):
-    from scipy.interpolate import RegularGridInterpolator
-    bnl_interp = RegularGridInterpolator([np.log10(Ms_in), np.log10(Ms_in), np.log10(ks_in)], beta_NL_in,
-        method=method, fill_value=None, bounds_error=False)
-    bnl_out= np.zeros((Ms_out.size, Ms_out.size, ks_out.size))
-    indices = np.vstack(np.meshgrid(np.arange(Ms_out.size),np.arange(Ms_out.size),np.arange(ks_out.size), copy = False)).reshape(3,-1).T
-    values = np.vstack(np.meshgrid(np.log10(Ms_out), np.log10(Ms_out), np.log10(ks_out), copy = False)).reshape(3,-1).T
-    bnl_out[indices[:,0], indices[:,1], indices[:,2]] = bnl_interp(values)
-    return bnl_out    
 
-def interpolate_beta_NL_efficient(ks, Ms, Ms_small, beta_NL_small, fill_value):
-    '''
-    Interpolate beta_NL from a small grid to a large grid for halo-model calculations
-    TODO: Remove inefficient loops
-    TODO: Add more interesting extrapolations. Currently just nearest neighbour, 
-    which means everything outside the range is set to the same value
-    '''
-    from scipy.interpolate import interp2d
-    beta_NL = np.zeros((len(Ms), len(Ms), len(ks))) # Numpy array for output
-    for ik, _ in enumerate(ks):
-        beta_NL_interp = interp2d(np.log(Ms_small), np.log(Ms_small), beta_NL_small[:, :, ik]
-            , kind='linear', fill_value=fill_value)
-        for iM1, M1 in enumerate(Ms):
-            for iM2, M2 in enumerate(Ms):
-                beta_NL[iM1, iM2, ik] = beta_NL_interp(np.log(M1), np.log(M2))
-    return beta_NL
+# Supported methods are “linear”, “nearest”, “slinear”, “cubic”, and “quintic”
+def RegularGridInterp_beta_NL(Ms_in, ks_in, beta_NL_in, Ms_out, ks_out, method='linear'):
+    from scipy.interpolate import RegularGridInterpolator
+    bnl_interp = RegularGridInterpolator([Ms_in, Ms_in, np.log(ks_in)], beta_NL_in,
+        method=method, fill_value=None, bounds_error=False)
+    bnl_out = np.zeros((Ms_out.size, Ms_out.size, ks_out.size))
+    indices = np.vstack(np.meshgrid(np.arange(Ms_out.size),np.arange(Ms_out.size),np.arange(ks_out.size), 
+                                    copy = False)).reshape(3,-1).T
+    values = np.vstack(np.meshgrid(Ms_out, Ms_out, np.log(ks_out), 
+                                   copy = False)).reshape(3,-1).T
+    bnl_out[indices[:,0], indices[:,1], indices[:,2]] = bnl_interp(values)
+    return bnl_out
+
+
+# Supported methods are “linear”, “nearest”, “slinear”, “cubic”, and “quintic”
+def RegularGridInterp_beta_NL_log(Ms_in, ks_in, beta_NL_in, Ms_out, ks_out, method='linear'):
+    from scipy.interpolate import RegularGridInterpolator
+    bnl_interp = RegularGridInterpolator([np.log10(Ms_in), np.log10(Ms_in), np.log(ks_in)], beta_NL_in,
+        method=method, fill_value=None, bounds_error=False)
+    bnl_out = np.zeros((Ms_out.size, Ms_out.size, ks_out.size))
+    indices = np.vstack(np.meshgrid(np.arange(Ms_out.size),np.arange(Ms_out.size),np.arange(ks_out.size), 
+                                    copy = False)).reshape(3,-1).T
+    values = np.vstack(np.meshgrid(np.log10(Ms_out), np.log10(Ms_out), np.log(ks_out), 
+                                   copy = False)).reshape(3,-1).T
+    bnl_out[indices[:,0], indices[:,1], indices[:,2]] = bnl_interp(values)
+    return bnl_out
 
 ### ###
 
@@ -729,11 +742,13 @@ class haloprof():
             raise ValueError('Halo window function integration method not recognised')
         return Wk
 
+
 def Prho_isothermal(r, rv, M):
     '''
     Isothermal density profile multiplied by 4*pi*r^2
     '''
     return M/rv
+
 
 def Prho_NFW(r, rv, M, c):
     '''
@@ -742,12 +757,12 @@ def Prho_NFW(r, rv, M, c):
     rs = rv/c
     return M*r/(NFW_factor(c)*(1.+r/rs)**2*rs**2)
 
-def Prho_UPP(r, r500, M, z, Om_r,Om_m,Om_w,Om_v):
+
+def Prho_UPP(r, r500, M, z, Om_r, Om_m, Om_w, Om_v, h):
     '''
     Universal pressure profile: UPP
     '''
     alphap = 0.12
-    h = cosm.h
     def p(x):
         P0 = 6.41
         c500 = 1.81
@@ -760,10 +775,11 @@ def Prho_UPP(r, r500, M, z, Om_r,Om_m,Om_w,Om_v):
         p = P0*(h/0.7)**(-3./2.)*f1*(r500/c500)**2/f2
         return p
     a = utility.scale_factor_z(z)
-    H = utility.H(Om_r,Om_m,Om_w,Om_v, a)
+    H = utility.H(Om_r, Om_m, Om_w, Om_v, a)
     f1 = 1.65*(h/0.7)**2*H**(8./3.)
     f2 = (M/2.1e14)**(2./3.+alphap)
     return f1*f2*p(r/r500)*4.*np.pi
+
 
 def rho_Prho(Prho, r, *args):
     '''
@@ -772,11 +788,13 @@ def rho_Prho(Prho, r, *args):
     '''
     return Prho(r, *args)/(4.*np.pi*r**2)
 
+
 def rho_isothermal(r, rv, M):
     '''
     Density profile for an isothermal halo
     '''
     return rho_Prho(Prho_isothermal, r, rv, M)
+
 
 def rho_NFW(r, rv, M, c):
     '''
@@ -784,11 +802,13 @@ def rho_NFW(r, rv, M, c):
     '''
     return rho_Prho(Prho_NFW, r, rv, M, c)
 
+
 def win_delta():
     '''
     Normalised Fourier tranform for a delta-function profile
     '''
     return 1.
+
 
 def win_isothermal(k, rv):
     '''
@@ -797,6 +817,7 @@ def win_isothermal(k, rv):
     from scipy.special import sici
     Si, _ = sici(k*rv)
     return Si/(k*rv)
+
 
 def win_NFW(k, rv, c):
     '''
@@ -814,11 +835,13 @@ def win_NFW(k, rv, c):
     f4 = NFW_factor(c)
     return (f1+f2-f3)/f4
 
+
 def NFW_factor(c):
     '''
     Factor from normalisation that always appears in NFW equations
     '''
     return np.log(1.+c)-c/(1.+c)
+
 
 def profile_matter(ks, Ms, rvs, cs, Om_m):
     '''
@@ -884,6 +907,7 @@ def HOD_Zehavi(M, Mmin=1e12, M1=1e13, alpha=1.):
     Ns = (M/M1)**alpha
     return (Nc, Ns)
 
+
 def HOD_Zhai(M, Mmin=10**13.68, sigma=0.82, Msat=10**14.87, alpha=0.41, Mcut=10**12.32):
     '''
     HOD model from Zhai et al. (2017)
@@ -896,6 +920,7 @@ def HOD_Zhai(M, Mmin=10**13.68, sigma=0.82, Msat=10**14.87, alpha=0.41, Mcut=10*
         Nc = 0.5*(1.+erf(np.log10(M/Mmin)/sigma))
     Ns = ((M/Msat)**alpha)*np.exp(-Mcut/M) # Paper has a Nc(M) multiplication, but I think the central condition covers this
     return (Nc, Ns)
+
 
 def HOD_variance(p, lam, central_condition=True):
     '''
@@ -911,31 +936,5 @@ def HOD_variance(p, lam, central_condition=True):
         vss = lam # Poisson
         vcs = 0.  # No covariance
     return (vcc, vss, vcs)
-
-# Supported methods are “linear”, “nearest”, “slinear”, “cubic”, and “quintic”
-def RegularGridInterp_beta_NL(Ms_in, ks_in,beta_NL_in,Ms_out,ks_out ,method='linear'):
-    from scipy.interpolate import RegularGridInterpolator
-    bnl_interp = RegularGridInterpolator([Ms_in, Ms_in, np.log(ks_in)], beta_NL_in,
-        method=method, fill_value=None, bounds_error=False)
-    bnl_out = np.zeros((Ms_out.size, Ms_out.size, ks_out.size))
-    indices = np.vstack(np.meshgrid(np.arange(Ms_out.size),np.arange(Ms_out.size),np.arange(ks_out.size), 
-                                    copy = False)).reshape(3,-1).T
-    values = np.vstack(np.meshgrid(Ms_out, Ms_out, np.log(ks_out), 
-                                   copy = False)).reshape(3,-1).T
-    bnl_out[indices[:,0], indices[:,1], indices[:,2]] = bnl_interp(values)
-    return bnl_out  
-
-# Supported methods are “linear”, “nearest”, “slinear”, “cubic”, and “quintic”
-def RegularGridInterp_beta_NL_log(Ms_in, ks_in,beta_NL_in,Ms_out,ks_out ,method='linear'):
-    from scipy.interpolate import RegularGridInterpolator
-    bnl_interp = RegularGridInterpolator([np.log10(Ms_in), np.log10(Ms_in), np.log(ks_in)], beta_NL_in,
-        method=method, fill_value=None, bounds_error=False)
-    bnl_out = np.zeros((Ms_out.size, Ms_out.size, ks_out.size))
-    indices = np.vstack(np.meshgrid(np.arange(Ms_out.size),np.arange(Ms_out.size),np.arange(ks_out.size), 
-                                    copy = False)).reshape(3,-1).T
-    values = np.vstack(np.meshgrid(np.log10(Ms_out), np.log10(Ms_out), np.log(ks_out), 
-                                   copy = False)).reshape(3,-1).T
-    bnl_out[indices[:,0], indices[:,1], indices[:,2]] = bnl_interp(values)
-    return bnl_out  
 
 ### ###
