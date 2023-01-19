@@ -1,5 +1,6 @@
 # Standard imports
 import numpy as np
+import warnings
 
 # Other imports
 from dark_emulator import darkemu
@@ -520,19 +521,13 @@ def R_hh(emu, ks, M1, M2, z):
     '''
     Cross correlation coefficient between halo masses
     TODO: Prefix with get_ ?
-    TODO: Define this so that it is okay with negative cross power?
     '''
     P12 = emu.get_phh_mass(ks, M1, M2, z)
     P11 = emu.get_phh_mass(ks, M1, M1, z)
     P22 = emu.get_phh_mass(ks, M2, M2, z)
-    if (P12<0).any():
-        print('Warning: Negative values in halo power, M1='+ '%0.2f' % np.log10(M1)+", M2="+ '%0.2f' % np.log10(M2))
-    if (P11<0).any():
-        print('Warning: Negative values in halo power, M1=M2='+ '%0.2f' % np.log10(M1))
-    if (P22<0).any():
-        print('Warning: Negative values in halo power, M1=M2='+ '%0.2f' % np.log10(M2))
+    if (P11<0).any() or (P22<0).any():
+        warnings.warn('Negative values in halo auto power, M1=M2='+'%0.2f'%(np.log10(M1)), RuntimeWarning)
     return P12/np.sqrt(P11*P22)
-    #return P12**2/(P11*P22)
 
 ### ###
 
