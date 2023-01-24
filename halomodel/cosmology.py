@@ -8,23 +8,27 @@ import constants as const
 # Parameters
 xmin_Tk = 1e-5 # Scale at which to switch to Taylor expansion approximation
 
-def _Tophat_k(x):
+def _Tophat_k(x:np.ndarray) -> np.ndarray:
     '''
     Fourier transform of a tophat function.
+    args:
+        x: Usually kR
     '''
     xmin = xmin_Tk
     return np.where(np.abs(x)<xmin, 1.-x**2/10., (3./x**3)*(np.sin(x)-x*np.cos(x)))
 
 
-def _dTophat_k(x):
+def _dTophat_k(x:np.ndarray) -> np.ndarray:
     '''
     Derivative of the tophat Fourier transform function
+    args:
+        x: Usually kR
     '''
     xmin = xmin_Tk
     return np.where(np.abs(x)<xmin, -x/5.+x**3/70., (3./x**4)*((x**2-3.)*np.sin(x)+3.*x*np.cos(x)))
 
 
-def get_sigmaR(Rs, Pk_lin, kmin=1e-5, kmax=1e5, nk=1e5, integration_type='brute'):
+def get_sigmaR(Rs:np.ndarray, Pk_lin, kmin=1e-5, kmax=1e5, nk=1e5, integration_type='brute') -> np.ndarray:
     '''
     Get the square-root of the variance, sigma(R), in the density field
     at comoving Lagrangian scale R
@@ -45,67 +49,93 @@ def get_sigmaR(Rs, Pk_lin, kmin=1e-5, kmax=1e5, nk=1e5, integration_type='brute'
     return sigmaR_arr
 
 
-def _sigmaR_integrand(k, R, Power_k):
-   return Power_k(k)*(k**2)*_Tophat_k(k*R)**2
+def _sigmaR_integrand(k, R:float, Pk) -> np.ndarray:
+    '''
+    Integrand for calculating sigma(R)
+    Note that k can be a float or an arraay here
+    args:
+        k: Fourier wavenumber (or array of these) [h/Mpc]
+        R: Comoving Lagrangian radius [Mpc/h]
+        Pk: Function of k to evaluate the linear power spectrum
+    '''
+    return Pk(k)*(k**2)*_Tophat_k(k*R)**2
 
 
-def _dsigmaR_integrand(k, R, Power_k):
-    return Power_k(k)*(k**3)*_Tophat_k(k*R)*_dTophat_k(k*R)
-
-
-def _sigmaR_brute_log(R, Power_k, kmin=1e-5, kmax=1e5, nk=1e5):
+def _sigmaR_brute_log(R:float, Pk, kmin=1e-5, kmax=1e5, nk=1e5) -> float:
     '''
     Brute force integration, this is only slightly faster than using a loop
+    args:
+        R: Comoving Lagrangian radius [Mpc/h]
+        Pk: Function of k to evaluate the linear power spectrum
+        kmin: Minimum wavenumber [h/Mpc]
+        kmin: Maximum wavenumber [h/Mpc]
+        nk: Number of bins in wavenumber
     '''
     k_arr = np.logspace(np.log10(kmin), np.log10(kmax), int(nk))
     dln_k = np.log(k_arr[1]/k_arr[0])
-    def sigmaR_vec(R, Power_k):
-        sigmaR= np.sqrt(sum(dln_k*k_arr*_sigmaR_integrand(k_arr, R, Power_k))/(2.*np.pi**2))
+    def sigmaR_vec(R, Pk):
+        sigmaR= np.sqrt(sum(dln_k*k_arr*_sigmaR_integrand(k_arr, R, Pk))/(2.*np.pi**2))
         return sigmaR
-    sigma_func = np.vectorize(sigmaR_vec, excluded=['Power_k']) # Note that this is a function
-    return sigma_func(R, Power_k)
+    sigma_func = np.vectorize(sigmaR_vec, excluded=['Pk']) # Note that this is a function
+    return sigma_func(R, Pk)
  
 
-def _sigmaR_quad(R, Power_k):
-    # Quad integration
-    def sigmaR_vec(R, Power_k):
+def _sigmaR_quad(R:float, Pk) -> float:
+    '''
+    Quad integration
+    args:
+        R: Comoving Lagrangian radius [Mpc/h]
+        Pk: Function of k to evaluate the linear power spectrum
+    '''
+    def sigmaR_vec(R, Pk):
         kmin, kmax = 0., np.inf
-        sigma_squared, _ = integrate.quad(lambda k: _sigmaR_integrand(k, R, Power_k), kmin, kmax)
+        sigma_squared, _ = integrate.quad(lambda k: _sigmaR_integrand(k, R, Pk), kmin, kmax)
         sigma = np.sqrt(sigma_squared/(2.*np.pi**2))
         return sigma
-    sigma_func = np.vectorize(sigmaR_vec, excluded=['Power_k']) # Note that this is a function  
-    return sigma_func(R, Power_k)
+    sigma_func = np.vectorize(sigmaR_vec, excluded=['Pk']) # Note that this is a function  
+    return sigma_func(R, Pk)
 
 
-def _sigmaR_camb(R, results):
-    # Get sigma(R) from CAMB: note CAMB uses fortran to do the calculations and is therefore faster
+def _sigmaR_camb(R:float, results) -> np.ndarray:
+    '''
+    Get sigma(R) from CAMB: note CAMB uses Fortran to do the calculations and is therefore faster
+    '''
     sigmaRs = results.get_sigmaR(R, hubble_units=True, return_R_z=False)
     return sigmaRs
 
 
-def dlnsigma2_dlnR(R, Power_k):
+def _dsigmaR_integrand(k:float, R:float, Pk) -> float:
+    return Pk(k)*(k**3)*_Tophat_k(k*R)*_dTophat_k(k*R)
+
+
+def dlnsigma2_dlnR(R:float, Pk):
     '''
     Calculates d(ln sigma^2)/d(ln R) by integration
     '''
-    def dsigma_R_vec(R, Power_k):
+    def dsigma_R_vec(R, Pk):
         kmin, kmax = 0., np.inf # Evaluate the integral and convert to a nicer form
-        dsigma, _ = integrate.quad(lambda k: _dsigmaR_integrand(k, R, Power_k), kmin, kmax)
-        dsigma = R*dsigma/(np.pi*_sigmaR_quad(R, Power_k))**2
+        dsigma, _ = integrate.quad(lambda k: _dsigmaR_integrand(k, R, Pk), kmin, kmax)
+        dsigma = R*dsigma/(np.pi*_sigmaR_quad(R, Pk))**2
         return dsigma
-    dsigma_func = np.vectorize(dsigma_R_vec, excluded=['Power_k']) # Note that this is a function
-    return dsigma_func(R, Power_k)
+    dsigma_func = np.vectorize(dsigma_R_vec, excluded=['Pk']) # Note that this is a function
+    return dsigma_func(R, Pk)
 
 
-def comoving_matter_density(Om_m):
+def comoving_matter_density(Om_m:float):
     '''
     Comoving matter density, not a function of time [Msun/h / (Mpc/h)^3]
+    args:
+        Om_m: Cosmological matter density (at z=0)
     '''
     return const.rhoc*Om_m
 
 
-def Lagrangian_radius(M, Om_m):
+def Lagrangian_radius(M:float, Om_m:float) -> float:
     '''
-    Radius [Mpc/h] of a sphere containing mass M [Msun/h] in a homogeneous universe
+    Radius [Mpc/h] of a sphere containing mass M in a homogeneous universe
+    args:
+        M: Halo mass [Msun/h]
+        Om_m: Cosmological matter density (at z=0)
     '''
     return np.cbrt(3.*M/(4.*np.pi*comoving_matter_density(Om_m)))
 
