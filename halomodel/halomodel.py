@@ -600,28 +600,6 @@ class halo_model():
         '''
         return cosmology.Lagrangian_radius(M, self.Om_m)/np.cbrt(self.Dv)
 
-
-# def dc_NakamuraSuto(Om_mz):
-#     '''
-#     LCDM fitting function for the critical linear collapse density from Nakamura & Suto 
-#     (1997; https://arxiv.org/abs/astro-ph/9612074)
-#     Cosmology dependence is very weak
-#     '''
-#     return dc0*(1.+0.012299*np.log10(Om_mz))
-
-
-# def Dv_BryanNorman(Om_mz):
-#     '''
-#     LCDM fitting function for virial overdensity from Bryan & Norman 
-#     (1998; https://arxiv.org/abs/astro-ph/9710107)
-#     Note that here Dv is defined relative to background matter density, 
-#     whereas in paper it is relative to critical density
-#     For Omega_m = 0.3 LCDM Dv ~ 330.
-#     '''
-#     x = Om_mz-1.
-#     Dv = Dv0+82.*x-39.*x**2
-#     return Dv/Om_mz
-
 ### ###
 
 ### Beta_NL ###
