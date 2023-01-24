@@ -140,11 +140,11 @@ def Lagrangian_radius(M:float, Om_m:float) -> float:
     return np.cbrt(3.*M/(4.*np.pi*comoving_matter_density(Om_m)))
 
 
-# def mass_R(R, Om_m):
-#     '''
-#     Mass [Msun/h] contained within a sphere of radius 'R' [Mpc/h] in a homogeneous universe
-#     '''
-#     return (4./3.)*np.pi*R**3*comoving_matter_density(Om_m)
+def mass(R:float, Om_m:float) -> float:
+    '''
+    Mass [Msun/h] contained within a sphere of radius 'R' [Mpc/h] in a homogeneous universe
+    '''
+    return (4./3.)*np.pi*R**3*comoving_matter_density(Om_m)
 
 
 # def scale_factor_z(z):
