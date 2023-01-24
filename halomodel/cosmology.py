@@ -108,7 +108,7 @@ def _dsigmaR_integrand(k:float, R:float, Pk) -> float:
     return Pk(k)*(k**3)*_Tophat_k(k*R)*_dTophat_k(k*R)
 
 
-def dlnsigma2_dlnR(R:float, Pk):
+def dlnsigma2_dlnR(R:float, Pk) -> float:
     '''
     Calculates d(ln sigma^2)/d(ln R) by integration
     '''
@@ -121,7 +121,7 @@ def dlnsigma2_dlnR(R:float, Pk):
     return dsigma_func(R, Pk)
 
 
-def comoving_matter_density(Om_m:float):
+def comoving_matter_density(Om_m:float) -> float:
     '''
     Comoving matter density, not a function of time [Msun/h / (Mpc/h)^3]
     args:
