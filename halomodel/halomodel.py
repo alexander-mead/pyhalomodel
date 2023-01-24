@@ -60,7 +60,7 @@ do_I12_I21 = True # Low M1 or low M2 portion of the integral
 
 class halo_model():
 
-    def __init__(self, z: float, Om_m: float, hm=hm_def, Dv=Dv_def, dc=dc_def, verbose=False):
+    def __init__(self, z:float, Om_m:float, hm=hm_def, Dv=Dv_def, dc=dc_def, verbose=False):
 
         # Store internal variables
         self.z = z
@@ -164,7 +164,8 @@ class halo_model():
         if verbose:
             print()
 
-    def halo_mass_function(self, nu: float) -> float:
+
+    def _halo_mass_function_nu(self, nu:float) -> float:
         '''
         Halo mass function g(nu) with nu=delta_c/sigma(M)
         Integral of g(nu) over all nu is unity
@@ -189,7 +190,8 @@ class halo_model():
         else:
             raise ValueError('Halo model not recognised in halo_mass_function')
 
-    def linear_halo_bias(self, nu: float) -> float:
+
+    def _linear_halo_bias_nu(self, nu:float) -> float:
         '''
         Halo linear bias b(nu) with nu=delta_c/sigma(M)
         Integral of b(nu)*g(nu) over all nu is unity
@@ -227,384 +229,380 @@ class halo_model():
         else:
             raise ValueError('Halo model not recognised in linear_halo_bias')
 
-### ###
 
-### Halo model functions that take hmod as input ###
-# TODO: Should these be class methods?
-
-def linear_halo_bias(hmod, Ms: np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
-    '''
-    Calculates the linear halo bias as a function of halo mass
-    Args:
-        Ms: Array of halo masses
-    '''
-    nus = _get_nus(Ms, hmod.dc, hmod.Om_m, sigmas, sigma, Pk_lin)
-    return hmod.linear_halo_bias(nus)
+    def halo_mass_function(self, Ms:np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
+        '''
+        Calculates n(M), the halo mass function as a function of halo mass
+        n(M) is the comoving number-density of haloes per halo mass
+        '''
+        F = self.halo_multiplicity_function(Ms, sigmas, sigma, Pk_lin)
+        rho = cosmology.comoving_matter_density(self.Om_m)
+        return F*rho/Ms**2
 
 
-def halo_mass_function(hmod, Ms: np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
-    '''
-    Calculates n(M), the halo mass function as a function of halo mass
-    n(M) is the comoving number-density of haloes per halo mass
-    '''
-    F = halo_multiplicity_function(hmod, Ms, sigmas, sigma, Pk_lin)
-    rho = cosmology.comoving_matter_density(hmod.Om_m)
-    return F*rho/Ms**2
+    def halo_multiplicity_function(self, Ms:np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
+        '''
+        Calculates M^2 n(M) / rhobar, the so-called halo multiplicity function
+        Note that this is dimensionless
+        TODO: Add calculation of dnu_dlnm for sigmas
+        '''
+        nus = self._get_nus(Ms, sigmas, sigma, Pk_lin)
+        Rs = cosmology.Lagrangian_radius(Ms, self.Om_m)
+        if Pk_lin is not None:
+            dlnsigma2_dlnR = cosmology.dlnsigma2_dlnR(Rs, Pk_lin)
+        elif sigma is not None:
+            eps = eps_deriv_mf; dRs = Rs*eps # Uses numerical derivative
+            dlnsigma2_dlnR = 2.*util.log_derivative(sigma, Rs, dRs)
+        else:
+            raise ValueError('Error, this currently only works with either P(k) or sigma(R) functions')
+        dnu_dlnm = -(nus/6.)*dlnsigma2_dlnR
+        return self._halo_mass_function_nu(nus)*dnu_dlnm
 
 
-def halo_multiplicity_function(hmod, Ms: np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
-    '''
-    Calculates M^2 n(M) / rhobar, the so-called halo multiplicity function
-    Note that this is dimensionless
-    TODO: Add calculation of dnu_dlnm for sigmas
-    '''
-    nus = _get_nus(Ms, hmod.dc, hmod.Om_m, sigmas, sigma, Pk_lin)
-    Rs = cosmology.Lagrangian_radius(Ms, hmod.Om_m)
-    if Pk_lin is not None:
-        dlnsigma2_dlnR = cosmology.dlnsigma2_dlnR(Rs, Pk_lin)
-    elif sigma is not None:
-        eps = eps_deriv_mf; dRs = Rs*eps # Uses numerical derivative
-        dlnsigma2_dlnR = 2.*util.log_derivative(sigma, Rs, dRs)
-    else:
-        raise ValueError('Error, this currently only works with either P(k) or sigma(R) functions')
-    dnu_dlnm = -(nus/6.)*dlnsigma2_dlnR
-    return hmod.halo_mass_function(nus)*dnu_dlnm
+    def linear_halo_bias(self, Ms:np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
+        '''
+        Calculates the linear halo bias as a function of halo mass
+        Args:
+            Ms: Array of halo masses
+        '''
+        nus = self._get_nus(Ms, sigmas, sigma, Pk_lin)
+        return self._linear_halo_bias_nu(nus)
 
 
-def average(hmod, Ms: np.ndarray, fs: np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
-    '''
-    Calculate the mean of some f(M) over halo mass <f>: int f(M)n(M)dM where n(M) = dn/dM in some notations
-    Note that the units of n(M) are [(Msun/h)^{-1} (Mpc/h)^{-3}] so the units of the result are [F (Mpc/h)^{-3}]
-    Common: <M/rho> = 1 over all halo mass (equivalent to int g(nu)dnu = 1)
-    Common: <M^2/rho> = M_NL non-linear halo mass that maximall contributes to one-halo term (not M*)
-    Common: <b(M)M/rho> = 1 over all halo mass (equivalent to int g(nu)b(nu)dnu = 1)
-    Common: <N(M)> with N the number of galaxies in each halo of mass M; gives mean number density of galaxies
-    Common: <b(M)N(M)>/<N(M)> with N the number of galaxies in each halo of mass M; gives mean bias of galaxies
-    Args:
-        hmod: halomodel class
-        Ms: Array of halo masses [Msun/h]
-        fs(Ms): Array of function to calculate mean density of (same length as Ms)
-        sigmas(M): Optional array of previously calculated nu values corresponding to M
-        sigma(R): Optional function to get sigma(R) at z of interest
-        Pk_lin(k): Optional function to get linear power at z of interest
-    '''
-    nus = _get_nus(Ms, hmod.dc, hmod.Om_m, sigmas, sigma, Pk_lin)
-    integrand = (fs/Ms)*hmod.halo_mass_function(nus)
-    return halo_integration(integrand, nus)*cosmology.comoving_matter_density(hmod.Om_m)
+    def average(self, Ms:np.ndarray, fs:np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
+        '''
+        Calculate the mean of some f(M) over halo mass <f>: int f(M)n(M)dM where n(M) = dn/dM in some notations
+        Note that the units of n(M) are [(Msun/h)^{-1} (Mpc/h)^{-3}] so the units of the result are [F (Mpc/h)^{-3}]
+        Common: <M/rho> = 1 over all halo mass (equivalent to int g(nu)dnu = 1)
+        Common: <M^2/rho> = M_NL non-linear halo mass that maximall contributes to one-halo term (not M*)
+        Common: <b(M)M/rho> = 1 over all halo mass (equivalent to int g(nu)b(nu)dnu = 1)
+        Common: <N(M)> with N the number of galaxies in each halo of mass M; gives mean number density of galaxies
+        Common: <b(M)N(M)>/<N(M)> with N the number of galaxies in each halo of mass M; gives mean bias of galaxies
+        Args:
+            hmod: halomodel class
+            Ms: Array of halo masses [Msun/h]
+            fs(Ms): Array of function to calculate mean density of (same length as Ms)
+            sigmas(M): Optional array of previously calculated nu values corresponding to M
+            sigma(R): Optional function to get sigma(R) at z of interest
+            Pk_lin(k): Optional function to get linear power at z of interest
+        '''
+        nus = self._get_nus(Ms, sigmas, sigma, Pk_lin)
+        integrand = (fs/Ms)*self._halo_mass_function_nu(nus)
+        return halo_integration(integrand, nus)*cosmology.comoving_matter_density(self.Om_m)
 
 
-def Pk_hm(hmod, Ms: np.ndarray, ks: np.ndarray, profs: list, Pk_lin, beta=None, sigmas=None, 
-    sigma=None, shot=False, discrete=True, trunc_1halo=False, k_star=0.1, verbose=False) -> tuple:
-    '''
-    TODO: Remove Pk_lin dependence?
-    TODO: Combine trunc_1halo and k_star via None
-    Inputs
-        hmod: halomodel class
+    def Pk_hm(self, Ms:np.ndarray, ks:np.ndarray, profs:list, Pk_lin, beta=None, sigmas=None, 
+        sigma=None, shot=False, discrete=True, trunc_1halo=False, k_star=0.1, verbose=False) -> tuple:
+        '''
+        TODO: Remove Pk_lin dependence?
+        TODO: Combine trunc_1halo and k_star via None
+        Inputs
+            hmod: halomodel class
+            ks: Array of wavenumbers [h/Mpc]
+            profiles: List of halo profiles from haloprof class
+            Pk_lin(k): Function to evaluate the linear power spectrum [(Mpc/h)^3]
+            beta(M1, M2, k): Optional array of beta_NL values at points Ms, Ms, ks
+            sigmas(Ms): Optional pre-computed array of linear sigma(M) values corresponding to Ms
+            sigma(R): Optional function to evaluate the linear sigma(R)
+            shot: Should shot noise contribution be included within discrete spectra?
+            discrete: Properly treat discrete tracers with <N(N-1)> rather than <N^2>?
+            verbose: verbosity
+        '''
+        from time import time
+        t1 = time() # Initial time
+
+        # Checks
+        if type(profs) != list: raise TypeError('N must be list')
+        nf = len(profs) # Number of profiles
+        for prof in profs:
+            if (ks != prof.k).all(): raise ValueError('k arrays must all be identical to those in profiles')
+            if (Ms != prof.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
+
+        # Create arrays of R (Lagrangian radius) and nu values that correspond to the halo mass
+        nus = self._get_nus(Ms, sigmas, sigma, Pk_lin)
+
+        # Calculate the missing halo-bias from the low-mass part of the integral
+        A = 1.-integrate.quad(lambda nu: self._halo_mass_function_nu(nu)*self._linear_halo_bias_nu(nu), nus[0], np.inf)[0] # from nu_min to infinity
+        if verbose: print('Missing halo-bias-mass from the low-mass end of the two-halo integrand:', A)
+        if A < 0.:  warnings.warn('Warning: Mass function/bias correction is negative!', RuntimeWarning)
+
+        # Shot noise calculations
+        PSNs = []
+        for p in profs:
+            if p.discrete:
+                PSN = self._Pk_1h(Ms, nus, p.N/p.norm**2)
+            else:
+                PSN = 0.
+            PSNs.append(PSN)
+
+        # Fill arrays for results
+        nk = len(ks)
+        Pk_2h_array = np.zeros((nf, nf, nk))
+        Pk_1h_array = np.zeros((nf, nf, nk))
+        Pk_hm_array = np.zeros((nf, nf, nk))
+
+        # Loop over halo profiles
+        for u, pu in enumerate(profs): 
+            for v, pv in enumerate(profs):
+                if u <= v:
+                    for ik, k in enumerate(ks): # Loop over wavenumbers
+                        if beta is None: # Two-halo term, treat non-linear halo bias carefully
+                            Pk_2h_array[u, v, ik] = self._Pk_2h(Pk_lin, k, Ms, nus, 
+                                                        pu.Wk[:, ik], pv.Wk[:, ik], # TODO: Replace with Uk/norm
+                                                        pu.mass, pv.mass, A) # TODO: Remove pu.norm from A*pu.norm
+                        else:
+                            Pk_2h_array[u, v, ik] = self._Pk_2h(Pk_lin, k, Ms, nus, 
+                                                        pu.Wk[:, ik], pv.Wk[:, ik], # TODO: Replace with Uk/norm
+                                                        pu.mass, pv.mass, A, beta[:, :, ik])
+                        if u == v: # and ((discrete and pu.discrete) or (pu.var is not None)): # One-halo term, treat discrete auto case carefully
+                            if discrete and pu.discrete: # Treat discrete tracers
+                                Wfac = pu.N*(pu.N-1.) # <N(N-1)> for discrete tracers
+                            else:
+                                Wfac = pu.N**2 # <N^2> for others
+                            if pu.var is not None: Wfac += pu.var # Add variance
+                            Wprod = Wfac*(pu.Uk[:, ik]/pu.norm)**2 # Multiply by factors of normalisataion and profile
+                        else:
+                            Wprod = pu.Wk[:, ik]*pv.Wk[:, ik] # TODO: Replace with Uk/norm
+                        Pk_1h_array[u, v, ik] = self._Pk_1h(Ms, nus, Wprod)
+                    # Shot noise corrections
+                    # If '(not discrete) and shot' or 'discrete and (not shot)' no need to do anything as shot noise already correct
+                    if (u == v) and pu.discrete:
+                        if discrete and shot:
+                            Pk_1h_array[u, v, :] += PSNs[u] # Need to add shot noise
+                        elif (not discrete) and (not shot):
+                            warnings.warn('Warning: Subtracting shot noise while not treating discreteness properly is dangerous', RuntimeWarning)
+                            Pk_1h_array[u, v, :] -= PSNs[u] # Need to subtract shot noise
+                    if trunc_1halo:
+                        Pk_hm_array[u, v, :] = Pk_2h_array[u, v, :]+Pk_1h_array[u, v, :]*(1.-np.exp(-(ks/k_star)**2)) # Total
+                    else:
+                        Pk_hm_array[u, v, :] = Pk_2h_array[u, v, :]+Pk_1h_array[u, v, :] # Total
+                else:
+                    # No need to do these calculations twice
+                    Pk_2h_array[u, v, :] = Pk_2h_array[v, u, :]
+                    Pk_1h_array[u, v, :] = Pk_1h_array[v, u, :]
+                    Pk_hm_array[u, v, :] = Pk_hm_array[v, u, :]
+        
+        t2 = time() # Final time
+        if verbose:
+            print('Halomodel calculation time [s]:', t2-t1, '\n')
+
+        return Pk_2h_array, Pk_1h_array, Pk_hm_array
+
+
+    def _Pk_2h(self, Pk_lin, k:float, Ms:np.ndarray, nus:np.ndarray, 
+        Wu:float, Wv:float, mass_u:bool, mass_v:bool, A:float, beta=None) -> float:
+        '''
+        Two-halo term at a specific wavenumber
+        '''
+        if beta is None:
+            I_NL = 0.
+        else:
+            I_NL = self._I_beta(beta, Ms, nus, Wu, Wv, mass_u, mass_v, A)
+        Iu = self._I_2h(Ms, nus, Wu, mass_u, A)
+        Iv = self._I_2h(Ms, nus, Wv, mass_v, A)
+        return Pk_lin(k)*(Iu*Iv+I_NL)
+
+
+    def _Pk_1h(self, Ms:np.ndarray, nus:np.ndarray, WuWv:float) -> float:
+        '''
+        One-halo term at a specific wavenumber
+        '''
+        integrand = WuWv*self._halo_mass_function_nu(nus)/Ms
+        P_1h = halo_integration(integrand, nus)
+        P_1h = P_1h*cosmology.comoving_matter_density(self.Om_m)
+        return P_1h
+
+
+    def _I_2h(self, Ms:np.ndarray, nus:np.ndarray, W:float, mass:bool, A:float) -> float:
+        '''
+        Evaluate the integral that appears in the two-halo term
+        '''
+        integrand = W*self._linear_halo_bias_nu(nus)*self._halo_mass_function_nu(nus)/Ms
+        I_2h = halo_integration(integrand, nus)
+        if mass:
+            I_2h += A*W[0]/Ms[0]
+        I_2h = I_2h*cosmology.comoving_matter_density(self.Om_m)
+        return I_2h
+
+
+    def _I_beta(self, beta:np.ndarray, Ms:np.ndarray, nus:np.ndarray, Wu:float, Wv:float, 
+        massu:bool, massv:bool, A:float) -> float:
+        '''
+        Evaluates the beta_NL double integral
+        TODO: Loops probably horribly inefficient here
+        '''
+        from numpy import trapz
+        integrand = np.zeros((len(nus), len(nus)))
+        for iM1, nu1 in enumerate(nus):
+            for iM2, nu2 in enumerate(nus):
+                if iM2 >= iM1:
+                    M1 = Ms[iM1]
+                    M2 = Ms[iM2]
+                    W1 = Wu[iM1]
+                    W2 = Wv[iM2]
+                    g1 = self._halo_mass_function_nu(nu1)
+                    g2 = self._halo_mass_function_nu(nu2)
+                    b1 = self._linear_halo_bias_nu(nu1)
+                    b2 = self._linear_halo_bias_nu(nu2)
+                    integrand[iM1, iM2] = beta[iM1, iM2]*W1*W2*g1*g2*b1*b2/(M1*M2)
+                else:
+                    integrand[iM1, iM2] = integrand[iM2, iM1]
+        integral = util.trapz2d(integrand, nus, nus)
+        if do_I11 and massu and massv:
+            integral += beta[0, 0]*(A**2)*Wu[0]*Wv[0]/Ms[0]**2
+        if do_I12_I21 and massu:
+            integrand = np.zeros(len(nus))
+            for iM, nu in enumerate(nus):
+                M = Ms[iM]
+                W = Wv[iM]
+                g = self._halo_mass_function_nu(nu)
+                b = self._linear_halo_bias_nu(nu)
+                integrand[iM] = beta[0, iM]*W*g*b/M
+            integral += (A*Wu[0]/Ms[0])*trapz(integrand, nus)
+        if do_I12_I21 and massv:
+            for iM, nu in enumerate(nus):
+                M = Ms[iM]
+                W = Wu[iM]
+                g = self._halo_mass_function_nu(nu)
+                b = self._linear_halo_bias_nu(nu)
+                integrand[iM] = beta[iM, 0]*W*g*b/M
+            integral += (A*Wv[0]/Ms[0])*trapz(integrand, nus)
+        return integral*cosmology.comoving_matter_density(self.Om_m)**2
+
+
+    def Pk_hm_hu(self, Mh:float, Ms:np.ndarray, ks:np.ndarray, profs:list, 
+        Pk_lin, beta=None, sigmas=None, sigma=None, verbose=True) -> tuple:
+        '''
+        TODO: Remove Pk_lin dependence?
+        Inputs
+        hmod: halo_model class
+        Mh: Halo mass [Msun/h]
         ks: Array of wavenumbers [h/Mpc]
-        profiles: list of halo profiles from haloprof class
+        Ms: Array of halo masses [Msun/h]
+        profs: A list of halo profiles (haloprof class)
         Pk_lin(k): Function to evaluate the linear power spectrum [(Mpc/h)^3]
-        beta(M1, M2, k): Optional array of beta_NL values at points Ms, Ms, ks
+        beta(Ms, ks): Optional array of beta_NL values at points Ms, ks
         sigmas(Ms): Optional pre-computed array of linear sigma(M) values corresponding to Ms
         sigma(R): Optional function to evaluate the linear sigma(R)
-        shot: Should shot noise contribution be included within discrete spectra?
-        discrete: Properly treat discrete tracers with <N(N-1)> rather than <N^2>?
         verbose: verbosity
-    '''
-    from time import time
-    t1 = time() # Initial time
+        '''
+        from time import time
+        from scipy.interpolate import interp1d
+        t1 = time() # Initial time
 
-    # Checks
-    if type(profs) != list: raise TypeError('N must be list')
-    nf = len(profs) # Number of profiles
-    for prof in profs:
-        if (ks != prof.k).all(): raise ValueError('k arrays must all be identical to those in profiles')
-        if (Ms != prof.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
+        # Checks
+        if type(profs) != list: raise TypeError('N must be list of length 2')
+        nf = len(profs) # Number of profiles
+        for prof in profs:
+            if (ks != prof.k).all(): raise ValueError('k arrays must all be identical to those in profiles')
+            if (Ms != prof.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
 
-    # Create arrays of R (Lagrangian radius) and nu values that correspond to the halo mass
-    nus = _get_nus(Ms, hmod.dc, hmod.Om_m, sigmas, sigma, Pk_lin)
+        # Create arrays of R (Lagrangian radius) and nu values that correspond to the halo mass
+        nus = self._get_nus(Ms, sigmas, sigma, Pk_lin)
 
-    # Calculate the missing halo-bias from the low-mass part of the integral
-    A = 1.-integrate.quad(lambda nu: hmod.halo_mass_function(nu)*hmod.linear_halo_bias(nu), nus[0], np.inf)[0] # from nu_min to infinity
-    if verbose: print('Missing halo-bias-mass from the low-mass end of the two-halo integrand:', A)
-    if A < 0.:  warnings.warn('Warning: Mass function/bias correction is negative!', RuntimeWarning)
+        # Calculate the missing halo-bias from the low-mass part of the integral
+        integrand = self._halo_mass_function_nu(nus)*self._linear_halo_bias_nu(nus)
+        A = 1.-halo_integration(integrand, nus)
+        if verbose:
+            print('Missing halo-bias-mass from two-halo integrand:', A, '\n')
 
-    # Shot noise calculations
-    PSNs = []
-    for p in profs:
-        if p.discrete:
-            PSN = _Pk_1h(hmod, Ms, nus, p.N/p.norm**2)
-        else:
-            PSN = 0.
-        PSNs.append(PSN)
+        # Calculate nu(Mh) and W(Mh, k) by interpolating the input arrays
+        # NOTE: Wh is not the halo profile, but the profile of the other thing (u) evaluated at the halo mass!
+        nu_M_interp = interp1d(np.log(Ms), nus, kind='cubic')
+        nuh = nu_M_interp(np.log(Mh))
+        Whs = []
+        for prof in profs:
+            Wh = np.empty_like(prof.Wk[0, :])
+            for ik, _ in enumerate(ks):
+                WM_interp = interp1d(np.log(Ms), prof.Wk[:, ik], kind='cubic')
+                Wh[ik] = WM_interp(np.log(Mh))
+            Whs.append(Wh)
 
-    # Fill arrays for results
-    nk = len(ks)
-    Pk_2h_array = np.zeros((nf, nf, nk))
-    Pk_1h_array = np.zeros((nf, nf, nk))
-    Pk_hm_array = np.zeros((nf, nf, nk))
-
-    # Loop over halo profiles
-    for u, pu in enumerate(profs): 
-        for v, pv in enumerate(profs):
-            if u <= v:
-                for ik, k in enumerate(ks): # Loop over wavenumbers
-                    if beta is None: # Two-halo term, treat non-linear halo bias carefully
-                        Pk_2h_array[u, v, ik] = _Pk_2h(hmod, Pk_lin, k, Ms, nus, 
-                                                      pu.Wk[:, ik], pv.Wk[:, ik], # TODO: Replace with Uk/norm
-                                                      pu.mass, pv.mass, A) # TODO: Remove pu.norm from A*pu.norm
-                    else:
-                        Pk_2h_array[u, v, ik] = _Pk_2h(hmod, Pk_lin, k, Ms, nus, 
-                                                      pu.Wk[:, ik], pv.Wk[:, ik], # TODO: Replace with Uk/norm
-                                                      pu.mass, pv.mass, A, beta[:, :, ik])
-                    if (u == v): # and ((discrete and pu.discrete) or (pu.var is not None)): # One-halo term, treat discrete auto case carefully
-                        if discrete and pu.discrete: # Treat discrete tracers
-                            Wfac = pu.N*(pu.N-1.) # <N(N-1)> for discrete tracers
-                        else:
-                            Wfac = pu.N**2 # <N^2> for others
-                        if pu.var is not None: Wfac += pu.var # Add variance
-                        Wprod = Wfac*(pu.Uk[:, ik]/pu.norm)**2 # Multiply by factors of normalisataion and profile
-                    else:
-                        Wprod = pu.Wk[:, ik]*pv.Wk[:, ik] # TODO: Replace with Uk/norm
-                    Pk_1h_array[u, v, ik] = _Pk_1h(hmod, Ms, nus, Wprod)
-                # Shot noise corrections
-                # If '(not discrete) and shot' or 'discrete and (not shot)' no need to do anything as shot noise already correct
-                if (u == v) and pu.discrete:
-                    if discrete and shot:
-                        Pk_1h_array[u, v, :] += PSNs[u] # Need to add shot noise
-                    elif (not discrete) and (not shot):
-                        warnings.warn('Warning: Subtracting shot noise while not treating discreteness properly is dangerous', RuntimeWarning)
-                        Pk_1h_array[u, v, :] -= PSNs[u] # Need to subtract shot noise
-                if trunc_1halo:
-                    Pk_hm_array[u, v, :] = Pk_2h_array[u, v, :]+Pk_1h_array[u, v, :]*(1.-np.exp(-(ks/k_star)**2)) # Total
+        # Combine everything and return
+        nk = len(ks)
+        Pk_2h_array = np.zeros((nf, nk))
+        Pk_1h_array = np.zeros((nf, nk))
+        Pk_hm_array = np.zeros((nf, nk))
+        for u, prof in enumerate(profs):
+            for ik, k in enumerate(ks):
+                if beta is None:
+                    Pk_2h_array[u, ik] = self._Pk_2h_hu(Pk_lin, k, Ms, nuh, nus, prof.Wk[:, ik], prof.mass, A)
                 else:
-                    Pk_hm_array[u, v, :] = Pk_2h_array[u, v, :]+Pk_1h_array[u, v, :] # Total
-            else:
-                # No need to do these calculations twice
-                Pk_2h_array[u, v, :] = Pk_2h_array[v, u, :]
-                Pk_1h_array[u, v, :] = Pk_1h_array[v, u, :]
-                Pk_hm_array[u, v, :] = Pk_hm_array[v, u, :]
-    
-    t2 = time() # Final time
-    if verbose:
-        print('Halomodel calculation time [s]:', t2-t1, '\n')
+                    Pk_2h_array[u, ik] = self._Pk_2h_hu(Pk_lin, k, Ms, nuh, nus, prof.Wk[:, ik], prof.mass, A, beta[:, ik])
+                Pk_1h_array[ik] = Whs[u][ik] # Simply the halo profile at M=Mh here
+                Pk_hm_array[ik] = Pk_2h_array[ik]+Pk_1h_array[ik]
+        t2 = time() # Final time
 
-    return Pk_2h_array, Pk_1h_array, Pk_hm_array
+        if verbose:  
+            print('Halomodel calculation time [s]:', t2-t1, '\n')
+
+        return Pk_2h_array, Pk_1h_array, Pk_hm_array
 
 
-def _Pk_2h(hmod, Pk_lin, k: float, Ms: np.ndarray, nus: np.ndarray, 
-    Wu: float, Wv: float, mass_u: bool, mass_v: bool, A: float, beta=None) -> float:
-    '''
-    Two-halo term at a specific wavenumber
-    '''
-    if beta is None:
-        I_NL = 0.
-    else:
-        I_NL = _I_beta(hmod, beta, Ms, nus, Wu, Wv, mass_u, mass_v, A)
-    Iu = _I_2h(hmod, Ms, nus, Wu, mass_u, A)
-    Iv = _I_2h(hmod, Ms, nus, Wv, mass_v, A)
-    return Pk_lin(k)*(Iu*Iv+I_NL)
+    def _Pk_2h_hu(self, Pk_lin, k:float, Ms:np.ndarray, nuh:float, 
+        nus:np.ndarray, Wk:float, mass:bool, A:float, beta=None) -> float:
+        '''
+        Two-halo term for halo-u at a specific wavenumber
+        '''
+        if beta is None:
+            I_NL = 0.
+        else:
+            I_NL = self._I_beta_hu(beta, Ms, nuh, nus, Wk, mass, A)
+        Ih = self._linear_halo_bias_nu(nuh) # Simply the linear bias
+        Iu = self._I_2h(Ms, nus, Wk, mass, A) # Same as for the standard two-halo term
+        return Pk_lin(k)*(Ih*Iu+I_NL)
 
 
-def _Pk_1h(hmod, Ms: np.ndarray, nus: np.ndarray, WuWv: float) -> float:
-    '''
-    One-halo term at a specific wavenumber
-    '''
-    integrand = WuWv*hmod.halo_mass_function(nus)/Ms
-    P_1h = halo_integration(integrand, nus)
-    P_1h = P_1h*cosmology.comoving_matter_density(hmod.Om_m)
-    return P_1h
-
-
-def _I_2h(hmod, Ms: np.ndarray, nus: np.ndarray, W: float, mass: bool, A: float) -> float:
-    '''
-    Evaluate the integral that appears in the two-halo term
-    '''
-    integrand = W*hmod.linear_halo_bias(nus)*hmod.halo_mass_function(nus)/Ms
-    I_2h = halo_integration(integrand, nus)
-    if mass:
-        I_2h += A*W[0]/Ms[0]
-    I_2h = I_2h*cosmology.comoving_matter_density(hmod.Om_m)
-    return I_2h
-
-
-def _I_beta(hmod, beta: np.ndarray, Ms: np.ndarray, nus: np.ndarray, Wu: float, Wv: float, 
-    massu: bool, massv: bool, A: float) -> float:
-    '''
-    Evaluates the beta_NL double integral
-    TODO: Loops probably horribly inefficient here
-    '''
-    from numpy import trapz
-    integrand = np.zeros((len(nus), len(nus)))
-    for iM1, nu1 in enumerate(nus):
-        for iM2, nu2 in enumerate(nus):
-            if iM2 >= iM1:
-                M1 = Ms[iM1]
-                M2 = Ms[iM2]
-                W1 = Wu[iM1]
-                W2 = Wv[iM2]
-                g1 = hmod.halo_mass_function(nu1)
-                g2 = hmod.halo_mass_function(nu2)
-                b1 = hmod.linear_halo_bias(nu1)
-                b2 = hmod.linear_halo_bias(nu2)
-                integrand[iM1, iM2] = beta[iM1, iM2]*W1*W2*g1*g2*b1*b2/(M1*M2)
-            else:
-                integrand[iM1, iM2] = integrand[iM2, iM1]
-    integral = util.trapz2d(integrand, nus, nus)
-    if do_I11 and massu and massv:
-        integral += beta[0, 0]*(A**2)*Wu[0]*Wv[0]/Ms[0]**2
-    if do_I12_I21 and massu:
+    def _I_beta_hu(self, beta:np.ndarray, Ms:np.ndarray, nuh:float, nus:np.ndarray, 
+        Wk:np.ndarray, mass:bool, A:float) -> float:
+        '''
+        Evaluates the beta_NL integral for halo-u
+        TODO: Loop probably very inefficent here
+        '''
+        from numpy import trapz
+        bh = self._linear_halo_bias_nu(nuh)
         integrand = np.zeros(len(nus))
         for iM, nu in enumerate(nus):
             M = Ms[iM]
-            W = Wv[iM]
-            g = hmod.halo_mass_function(nu)
-            b = hmod.linear_halo_bias(nu)
-            integrand[iM] = beta[0, iM]*W*g*b/M
-        integral += (A*Wu[0]/Ms[0])*trapz(integrand, nus)
-    if do_I12_I21 and massv:
-        for iM, nu in enumerate(nus):
-            M = Ms[iM]
-            W = Wu[iM]
-            g = hmod.halo_mass_function(nu)
-            b = hmod.linear_halo_bias(nu)
-            integrand[iM] = beta[iM, 0]*W*g*b/M
-        integral += (A*Wv[0]/Ms[0])*trapz(integrand, nus)
-    return integral*cosmology.comoving_matter_density(hmod.Om_m)**2
+            W = Wk[iM]
+            g = self._halo_mass_function_nu(nu)
+            b = self._linear_halo_bias_nu(nu)
+            integrand[iM] = beta[iM]*W*g*b/M
+        integral = trapz(integrand, nus)
+        if mass:
+            integral += A*beta[0]*Wk[0]/Ms[0]
+        return bh*integral*cosmology.comoving_matter_density(self.Om_m)
+
+    ### ###
+
+    ### Halo model functions that do not take hmod as input ###
+
+    # TODO: Should these take hmod as an input and be class methods?
+
+    def _get_nus(self, Ms:np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
+        '''
+        Calculate nu values from array of halo masses
+        '''
+        # Create arrays of R (Lagrangian) and nu values that correspond to the halo mass
+        Rs = cosmology.Lagrangian_radius(Ms, self.Om_m)
+
+        # Convert R values to nu via sigma(R)
+        if sigmas is not None:
+            nus = self.dc/sigmas # Use the provided sigma(R) values or...
+        elif sigma is not None:
+            nus = self.dc/sigma(Rs) # ...otherwise evaluate the provided sigma(R) function or...
+        elif Pk_lin is not None:
+            nus = self.dc/cosmology.get_sigmaR(Rs, Pk_lin, integration_type='quad') ### ...otherwise integrate
+        else:
+            raise ValueError('Error, you need to specify (at least) one of Pk_lin, sigma or sigmas') 
+        return nus
 
 
-def Pk_hm_hu(hmod, Mh: float, Ms: np.ndarray, ks: np.ndarray, profs: list, 
-    Pk_lin, beta=None, sigmas=None, sigma=None, verbose=True) -> tuple:
-    '''
-    TODO: Remove Pk_lin dependence?
-    Inputs
-    hmod: halo_model class
-    Mh: Halo mass [Msun/h]
-    ks: Array of wavenumbers [h/Mpc]
-    Ms: Array of halo masses [Msun/h]
-    profs: A list of halo profiles (haloprof class)
-    Pk_lin(k): Function to evaluate the linear power spectrum [(Mpc/h)^3]
-    beta(Ms, ks): Optional array of beta_NL values at points Ms, ks
-    sigmas(Ms): Optional pre-computed array of linear sigma(M) values corresponding to Ms
-    sigma(R): Optional function to evaluate the linear sigma(R)
-    verbose: verbosity
-    '''
-    from time import time
-    from scipy.interpolate import interp1d
-    t1 = time() # Initial time
-
-    # Checks
-    if type(profs) != list: raise TypeError('N must be list of length 2')
-    nf = len(profs) # Number of profiles
-    for prof in profs:
-        if (ks != prof.k).all(): raise ValueError('k arrays must all be identical to those in profiles')
-        if (Ms != prof.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
-
-    # Create arrays of R (Lagrangian radius) and nu values that correspond to the halo mass
-    nus = _get_nus(Ms, hmod.dc, hmod.Om_m, sigmas, sigma, Pk_lin)
-
-    # Calculate the missing halo-bias from the low-mass part of the integral
-    integrand = hmod.halo_mass_function(nus)*hmod.linear_halo_bias(nus)
-    A = 1.-halo_integration(integrand, nus)
-    if verbose:
-        print('Missing halo-bias-mass from two-halo integrand:', A, '\n')
-
-    # Calculate nu(Mh) and W(Mh, k) by interpolating the input arrays
-    # NOTE: Wh is not the halo profile, but the profile of the other thing (u) evaluated at the halo mass!
-    nu_M_interp = interp1d(np.log(Ms), nus, kind='cubic')
-    nuh = nu_M_interp(np.log(Mh))
-    Whs = []
-    for prof in profs:
-        Wh = np.empty_like(prof.Wk[0, :])
-        for ik, _ in enumerate(ks):
-            WM_interp = interp1d(np.log(Ms), prof.Wk[:, ik], kind='cubic')
-            Wh[ik] = WM_interp(np.log(Mh))
-        Whs.append(Wh)
-
-    # Combine everything and return
-    nk = len(ks)
-    Pk_2h_array = np.zeros((nf, nk))
-    Pk_1h_array = np.zeros((nf, nk))
-    Pk_hm_array = np.zeros((nf, nk))
-    for u, prof in enumerate(profs):
-        for ik, k in enumerate(ks):
-            if beta is None:
-                Pk_2h_array[u, ik] = _Pk_2h_hu(hmod, Pk_lin, k, Ms, nuh, nus, prof.Wk[:, ik], prof.mass, A)
-            else:
-                Pk_2h_array[u, ik] = _Pk_2h_hu(hmod, Pk_lin, k, Ms, nuh, nus, prof.Wk[:, ik], prof.mass, A, beta[:, ik])
-            Pk_1h_array[ik] = Whs[u][ik] # Simply the halo profile at M=Mh here
-            Pk_hm_array[ik] = Pk_2h_array[ik]+Pk_1h_array[ik]
-    t2 = time() # Final time
-
-    if verbose:  
-        print('Halomodel calculation time [s]:', t2-t1, '\n')
-
-    return Pk_2h_array, Pk_1h_array, Pk_hm_array
-
-
-def _Pk_2h_hu(hmod, Pk_lin, k: float, Ms: np.ndarray, nuh: float, 
-    nus: np.ndarray, Wk: float, mass: bool, A: float, beta=None) -> float:
-    '''
-    Two-halo term for halo-u at a specific wavenumber
-    '''
-    if beta is None:
-        I_NL = 0.
-    else:
-        I_NL = _I_beta_hu(hmod, beta, Ms, nuh, nus, Wk, mass, A)
-    Ih = hmod.linear_halo_bias(nuh) # Simply the linear bias
-    Iu = _I_2h(hmod, Ms, nus, Wk, mass, A) # Same as for the standard two-halo term
-    return Pk_lin(k)*(Ih*Iu+I_NL)
-
-
-def _I_beta_hu(hmod, beta: np.ndarray, Ms: np.ndarray, nuh: float, nus: np.ndarray, 
-    Wk: np.ndarray, mass: bool, A: float) -> float:
-    '''
-    Evaluates the beta_NL integral for halo-u
-    TODO: Loop probably very inefficent here
-    '''
-    from numpy import trapz
-    bh = hmod.linear_halo_bias(nuh)
-    integrand = np.zeros(len(nus))
-    for iM, nu in enumerate(nus):
-        M = Ms[iM]
-        W = Wk[iM]
-        g = hmod.halo_mass_function(nu)
-        b = hmod.linear_halo_bias(nu)
-        integrand[iM] = beta[iM]*W*g*b/M
-    integral = trapz(integrand, nus)
-    if mass:
-        integral += A*beta[0]*Wk[0]/Ms[0]
-    return bh*integral*cosmology.comoving_matter_density(hmod.Om_m)
-
-### ###
-
-### Halo model functions that do not take hmod as input ###
-
-# TODO: Should these take hmod as an input and be class methods?
-
-def _get_nus(Ms: np.ndarray, dc: float, Om_m: float, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
-    '''
-    Calculate nu values from array of halo masses
-    '''
-    # Create arrays of R (Lagrangian) and nu values that correspond to the halo mass
-    Rs = cosmology.Lagrangian_radius(Ms, Om_m)
-
-    # Convert R values to nu via sigma(R)
-    if sigmas is not None:
-        nus = dc/sigmas # Use the provided sigma(R) values or...
-    elif sigma is not None:
-        nus = dc/sigma(Rs) # ...otherwise evaluate the provided sigma(R) function or...
-    elif Pk_lin is not None:
-        nus = dc/cosmology.get_sigmaR(Rs,Pk_lin,integration_type='quad') ### ...otherwise integrate
-    else:
-        raise ValueError('Error, you need to specify (at least) one of Pk_lin, sigma or sigmas') 
-    return nus
-
-
-def virial_radius(M: float, Dv: float, Om_m: float) -> float:
-    '''
-    Halo virial radius based on the halo mass and overdensity condition
-    '''
-    return cosmology.Lagrangian_radius(M, Om_m)/np.cbrt(Dv)
+    def virial_radius(self, M:float) -> float:
+        '''
+        Halo virial radius based on the halo mass and overdensity condition
+        '''
+        return cosmology.Lagrangian_radius(M, self.Om_m)/np.cbrt(self.Dv)
 
 
 # def dc_NakamuraSuto(Om_mz):
@@ -634,8 +632,8 @@ def virial_radius(M: float, Dv: float, Om_m: float) -> float:
 
 # TODO: These should all be in one function
 
-def interpolate_beta_NL(ks: np.ndarray, Ms: np.ndarray, Ms_small: np.ndarray, beta_NL_small: np.ndarray, 
-    fill_value: float) -> np.ndarray:
+def interpolate_beta_NL(ks:np.ndarray, Ms:np.ndarray, Ms_small:np.ndarray, beta_NL_small:np.ndarray, 
+    fill_value:float) -> np.ndarray:
     '''
     Interpolate beta_NL from a small grid to a large grid for halo-model calculations
     TODO: Remove inefficient loops
@@ -653,8 +651,8 @@ def interpolate_beta_NL(ks: np.ndarray, Ms: np.ndarray, Ms_small: np.ndarray, be
     return beta_NL
 
 
-def RegularGridInterp_beta_NL(Ms_in: np.ndarray, ks_in: np.ndarray, beta_NL_in: np.ndarray, 
-    Ms_out: np.ndarray, ks_out: np.ndarray, method='linear') -> np.ndarray:
+def RegularGridInterp_beta_NL(Ms_in:np.ndarray, ks_in:np.ndarray, beta_NL_in:np.ndarray, 
+    Ms_out:np.ndarray, ks_out:np.ndarray, method='linear') -> np.ndarray:
     '''
     Supported methods are 'linear', 'nearest', 'slinear', 'cubic', and 'quintic'
     '''
@@ -670,8 +668,8 @@ def RegularGridInterp_beta_NL(Ms_in: np.ndarray, ks_in: np.ndarray, beta_NL_in: 
     return bnl_out
 
 
-def RegularGridInterp_beta_NL_log(Ms_in: np.ndarray, ks_in: np.ndarray, beta_NL_in: np.ndarray, 
-    Ms_out: np.ndarray, ks_out: np.ndarray, method='linear') -> np.ndarray:
+def RegularGridInterp_beta_NL_log(Ms_in:np.ndarray, ks_in:np.ndarray, beta_NL_in:np.ndarray, 
+    Ms_out:np.ndarray, ks_out:np.ndarray, method='linear') -> np.ndarray:
     '''
     Supported methods are 'linear', 'nearest', 'slinear', 'cubic', and 'quintic'
     '''
@@ -694,7 +692,7 @@ class halo_profile():
     '''
     Class for halo profiles
     '''
-    def __init__(self, ks: np.ndarray, Ms: np.ndarray, Ns: np.ndarray, Uk: np.ndarray, 
+    def __init__(self, ks:np.ndarray, Ms:np.ndarray, Ns:np.ndarray, Uk:np.ndarray, 
         norm=1., var=None, Prho=None, mass=False, discrete=False, *args):
         '''
         TODO: Allow for rho(r) to be specified
@@ -703,7 +701,7 @@ class halo_profile():
             Ms: array of halo masses [Msun/h] going from low to high
             Ns(M): 1D array of halo profile amplitudes at halo masses 'M' (e.g., M for mass; N for galaxies)
             Uk(M, k): 2D array of normalised halo Fourier transform [dimensionless]; should have U(M, k->0) = 1
-            norm: float of normalisation (e.g., rhom for mass, ng for galaxies)
+            norm:float of normalisation (e.g., rhom for mass, ng for galaxies)
             var(M): Var(N(M)) (auto)variance in the profile amplitude at each halo mass (e.g., N for Poisson galaxies)
             Prho(r, rv, *args): 4\pi r^2\rho(r, rv, *args) for density profile
             mass: flag to determine if contributions are expected for M < M[0] (e.g., matter)
@@ -741,7 +739,7 @@ class halo_profile():
                 self.Wk = self.Uk*self.N # Renormalise halo profile
             self.Wk /= norm # TODO: Check /= operation, want A = A/b
 
-    def _halo_window(k: float, rv: float, Prho, *args) -> float:
+    def _halo_window(k:float, rv:float, Prho, *args) -> float:
         '''
         Compute the halo window function given a 'density' profile Prho(r) = 4*pi*r^2*rho(r)
         TODO: Use integration scheme for continuous function 
@@ -840,7 +838,7 @@ def win_delta() -> float:
     return 1.
 
 
-def win_isothermal(k: float, rv: float) -> float:
+def win_isothermal(k:float, rv:float) -> float:
     '''
     Normalised Fourier transform for an isothermal profile
     Args:
@@ -852,7 +850,7 @@ def win_isothermal(k: float, rv: float) -> float:
     return Si/(k*rv)
 
 
-def win_NFW(k: float, rv: float, c: float) -> float:
+def win_NFW(k:float, rv:float, c:float) -> float:
     '''
     Normalised Fourier transform for an NFW profile
     Args:
@@ -873,7 +871,7 @@ def win_NFW(k: float, rv: float, c: float) -> float:
     return (f1+f2-f3)/f4
 
 
-def _NFW_factor(c: float) -> float:
+def _NFW_factor(c:float) -> float:
     '''
     Factor from normalisation that always appears in NFW equations
     Args:
@@ -882,7 +880,7 @@ def _NFW_factor(c: float) -> float:
     return np.log(1.+c)-c/(1.+c)
 
 
-def matter_profile(ks: np.ndarray, Ms: np.ndarray, rvs: np.ndarray, cs: np.ndarray, Om_m: float) -> halo_profile:
+def matter_profile(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, Om_m:float) -> halo_profile:
     '''
     Pre-configured matter NFW profile
     Args:
@@ -902,7 +900,7 @@ def matter_profile(ks: np.ndarray, Ms: np.ndarray, rvs: np.ndarray, cs: np.ndarr
 
 ### Halo concentration
 
-def concentration(M: float, z: float, method='Duffy et al. (2008)', halo_definition='M200') -> float:
+def concentration(M:float, z:float, method='Duffy et al. (2008)', halo_definition='M200') -> float:
     '''
     Halo concentration as a function of halo mass and redshift
     Args:
@@ -917,7 +915,7 @@ def concentration(M: float, z: float, method='Duffy et al. (2008)', halo_definit
         raise ValueError('Halo concentration not recognised')
     return c
 
-def _concentration_Duffy(M: float, z: float, halo_definition='M200') -> float:
+def _concentration_Duffy(M:float, z:float, halo_definition='M200') -> float:
     '''
     Duffy et al (2008; 0804.2486) c(M) relation for WMAP5, See Table 1
     Appropriate for the full (rather than relaxed) samples
@@ -941,7 +939,7 @@ def _concentration_Duffy(M: float, z: float, halo_definition='M200') -> float:
 
 ### Halo-occupation distribution (HOD) ###
 
-def HOD_mean(M: float, method='Zheng et al. (2005)', **kwargs) -> tuple:
+def HOD_mean(M:float, method='Zheng et al. (2005)', **kwargs) -> tuple:
     '''
     Returns the expected (mean) number of central and satellite galaxies as a tuple
     Args:
@@ -961,7 +959,7 @@ def HOD_mean(M: float, method='Zheng et al. (2005)', **kwargs) -> tuple:
         raise ValueError('HOD method not recognised')
     return result
 
-def _HOD_simple(M: float, Mmin=1e12, Msat=1e13, alpha=1.) -> tuple:
+def _HOD_simple(M:float, Mmin=1e12, Msat=1e13, alpha=1.) -> tuple:
     '''
     Simple HOD model
     Args:
@@ -975,7 +973,7 @@ def _HOD_simple(M: float, Mmin=1e12, Msat=1e13, alpha=1.) -> tuple:
     return Nc, Ns
 
 
-def _HOD_Zehavi(M: float, Mmin=1e12, M1=1e13, alpha=1.) -> tuple:
+def _HOD_Zehavi(M:float, Mmin=1e12, M1=1e13, alpha=1.) -> tuple:
     '''
     HOD model from Zehavi et al. (2004; https://arxiv.org/abs/astro-ph/0703457)
     Same as Zheng model in the limit that sigma=0 and M0=0
@@ -991,7 +989,7 @@ def _HOD_Zehavi(M: float, Mmin=1e12, M1=1e13, alpha=1.) -> tuple:
     return Nc, Ns
 
 
-def _HOD_Zheng(M: float, Mmin=1e12, sigma=0.15, M0=1e12, M1=1e13, alpha=1.) -> tuple:
+def _HOD_Zheng(M:float, Mmin=1e12, sigma=0.15, M0=1e12, M1=1e13, alpha=1.) -> tuple:
     '''
     Zheng et al. (2005; https://arxiv.org/abs/astro-ph/0408564) HOD model
     Args:
@@ -1011,7 +1009,7 @@ def _HOD_Zheng(M: float, Mmin=1e12, sigma=0.15, M0=1e12, M1=1e13, alpha=1.) -> t
     return Nc, Ns
 
 
-def _HOD_Zhai(M: float, Mmin=10**13.68, sigma=0.82, Msat=10**14.87, alpha=0.41, Mcut=10**12.32) -> tuple:
+def _HOD_Zhai(M:float, Mmin=10**13.68, sigma=0.82, Msat=10**14.87, alpha=0.41, Mcut=10**12.32) -> tuple:
     '''
     HOD model from Zhai et al. (2017; https://arxiv.org/abs/1607.05383)
     '''
@@ -1024,7 +1022,7 @@ def _HOD_Zhai(M: float, Mmin=10**13.68, sigma=0.82, Msat=10**14.87, alpha=0.41, 
     return Nc, Ns
 
 
-def HOD_variance(p: float, lam: float, central_condition=True) -> tuple:
+def HOD_variance(p:float, lam:float, central_condition=True) -> tuple:
     '''
     Expected variance (and covariance) in the numbers of central and satellite galaxies
     Assumes Bernoulli statistics for centrals and Poisson statistics for satellites
