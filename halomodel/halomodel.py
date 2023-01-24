@@ -604,10 +604,21 @@ class halo_model():
 
 ### Beta_NL ###
 
-# TODO: These should all be in one function
-
 def interpolate_beta_NL(ks:np.ndarray, Ms:np.ndarray, Ms_small:np.ndarray, beta_NL_small:np.ndarray, 
-    fill_value:float) -> np.ndarray:
+    scheme='RegularGridInterp', **kwargs) -> np.ndarray:
+    if scheme == 'interp2d':
+        beta_NL = _interpolate_beta_NL(ks, Ms, Ms_small, beta_NL_small, **kwargs)
+    elif scheme == 'RegularGridInterp':
+        beta_NL = _RegularGridInterp_beta_NL(Ms_small, ks, beta_NL_small, Ms, ks, **kwargs)
+    elif scheme == 'RegularGridInterp_log':
+        beta_NL = _RegularGridInterp_beta_NL_log(Ms_small, ks, beta_NL_small, Ms, ks, **kwargs)
+    else:
+        raise ValueError('beta_NL interpolation method not recognised')
+    return beta_NL
+
+
+def _interpolate_beta_NL(ks:np.ndarray, Ms:np.ndarray, Ms_small:np.ndarray, beta_NL_small:np.ndarray, 
+    fill_value=0.) -> np.ndarray:
     '''
     Interpolate beta_NL from a small grid to a large grid for halo-model calculations
     TODO: Remove inefficient loops
@@ -625,7 +636,7 @@ def interpolate_beta_NL(ks:np.ndarray, Ms:np.ndarray, Ms_small:np.ndarray, beta_
     return beta_NL
 
 
-def RegularGridInterp_beta_NL(Ms_in:np.ndarray, ks_in:np.ndarray, beta_NL_in:np.ndarray, 
+def _RegularGridInterp_beta_NL(Ms_in:np.ndarray, ks_in:np.ndarray, beta_NL_in:np.ndarray, 
     Ms_out:np.ndarray, ks_out:np.ndarray, method='linear') -> np.ndarray:
     '''
     Supported methods are 'linear', 'nearest', 'slinear', 'cubic', and 'quintic'
@@ -642,7 +653,7 @@ def RegularGridInterp_beta_NL(Ms_in:np.ndarray, ks_in:np.ndarray, beta_NL_in:np.
     return bnl_out
 
 
-def RegularGridInterp_beta_NL_log(Ms_in:np.ndarray, ks_in:np.ndarray, beta_NL_in:np.ndarray, 
+def _RegularGridInterp_beta_NL_log(Ms_in:np.ndarray, ks_in:np.ndarray, beta_NL_in:np.ndarray, 
     Ms_out:np.ndarray, ks_out:np.ndarray, method='linear') -> np.ndarray:
     '''
     Supported methods are 'linear', 'nearest', 'slinear', 'cubic', and 'quintic'

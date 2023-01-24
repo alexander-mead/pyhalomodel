@@ -562,6 +562,7 @@ def get_beta_NL(emu, mass, ks, z, force_to_zero=0, mass_variable='mass', knl=5.)
     Beta_NL function, function: B^NL(M1, M2, k)
     TODO: Change to accept two separate mass arguments and merge with beta_NL_1D?
     TODO: knl unused
+    TODO: Use strings for different force_to_zero methods
     '''
     # Parameters
     klin = np.array([klin_BNL]) # klin must be a numpy array
