@@ -28,7 +28,7 @@ def _dTophat_k(x:np.ndarray) -> np.ndarray:
     return np.where(np.abs(x)<xmin, -x/5.+x**3/70., (3./x**4)*((x**2-3.)*np.sin(x)+3.*x*np.cos(x)))
 
 
-def get_sigmaR(Rs:np.ndarray, Pk_lin, kmin=1e-5, kmax=1e5, nk=1e5, integration_type='brute') -> np.ndarray:
+def sigmaR(Rs:np.ndarray, Pk_lin, kmin=1e-5, kmax=1e5, nk=1e5, integration_type='brute') -> np.ndarray:
     '''
     Get the square-root of the variance, sigma(R), in the density field
     at comoving Lagrangian scale R

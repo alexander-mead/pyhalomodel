@@ -49,7 +49,7 @@ dc_def = 1.686 # Linear collapse threshold relating nu = delta_c/sigma(M)
 do_I11 = True     # Low M1, M2 portion of the integral
 do_I12_I21 = True # Low M1 or low M2 portion of the integral
 
-# A to do list
+# To do list
 # TODO: Output halo mass function and bias (n(M); M^2 n(M)/rho; b(M)) but need dsigma integral
 # TODO: Incorporate configuration-space profiles
 # TODO: Dedicated test suite against HMcode/HMx for different cosmologies/halo models/redshifts
@@ -250,7 +250,7 @@ class halo_model():
         Args:
             Ms: Array of halo masses [Msun/h]
         '''
-        nus = self._get_nus(Ms, sigmas, sigma, Pk_lin)
+        nus = self._peak_height(Ms, sigmas, sigma, Pk_lin)
         Rs = cosmology.Lagrangian_radius(Ms, self.Om_m)
         if Pk_lin is not None:
             dlnsigma2_dlnR = cosmology.dlnsigma2_dlnR(Rs, Pk_lin)
@@ -269,7 +269,7 @@ class halo_model():
         Args:
             Ms: Array of halo masses [Msun/h]
         '''
-        nus = self._get_nus(Ms, sigmas, sigma, Pk_lin)
+        nus = self._peak_height(Ms, sigmas, sigma, Pk_lin)
         return self._linear_bias_nu(nus)
 
 
@@ -290,7 +290,7 @@ class halo_model():
             sigma(R): Optional function to get sigma(R) at z of interest
             Pk_lin(k): Optional function to get linear power at z of interest
         '''
-        nus = self._get_nus(Ms, sigmas, sigma, Pk_lin)
+        nus = self._peak_height(Ms, sigmas, sigma, Pk_lin)
         integrand = (fs/Ms)*self._mass_function_nu(nus)
         return halo_integration(integrand, nus)*self.rhom
 
@@ -323,7 +323,7 @@ class halo_model():
             if (Ms != prof.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
 
         # Create arrays of R (Lagrangian radius) and nu values that correspond to the halo mass
-        nus = self._get_nus(Ms, sigmas, sigma, Pk_lin)
+        nus = self._peak_height(Ms, sigmas, sigma, Pk_lin)
 
         # Calculate the missing halo-bias from the low-mass part of the integral
         A = 1.-integrate.quad(lambda nu: self._mass_function_nu(nu)*self._linear_bias_nu(nu), nus[0], np.inf)[0] # from nu_min to infinity
@@ -498,7 +498,7 @@ class halo_model():
             if (Ms != prof.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
 
         # Create arrays of R (Lagrangian radius) and nu values that correspond to the halo mass
-        nus = self._get_nus(Ms, sigmas, sigma, Pk_lin)
+        nus = self._peak_height(Ms, sigmas, sigma, Pk_lin)
 
         # Calculate the missing halo-bias from the low-mass part of the integral
         integrand = self._mass_function_nu(nus)*self._linear_bias_nu(nus)
@@ -574,9 +574,9 @@ class halo_model():
         return bh*integral*self.rhom
 
 
-    def _get_nus(self, Ms:np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
+    def _peak_height(self, Ms:np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
         '''
-        Calculate nu values from array of halo masses
+        Calculate peak-height (nu) values from array of halo masses
         '''
         # Create arrays of R (Lagrangian) and nu values that correspond to the halo mass
         Rs = cosmology.Lagrangian_radius(Ms, self.Om_m)
@@ -587,7 +587,7 @@ class halo_model():
         elif sigma is not None:
             nus = self.dc/sigma(Rs) # ...otherwise evaluate the provided sigma(R) function or...
         elif Pk_lin is not None:
-            nus = self.dc/cosmology.get_sigmaR(Rs, Pk_lin, integration_type='quad') ### ...otherwise integrate
+            nus = self.dc/cosmology.sigmaR(Rs, Pk_lin, integration_type='quad') ### ...otherwise integrate
         else:
             raise ValueError('Error, you need to specify (at least) one of Pk_lin, sigma or sigmas') 
         return nus
