@@ -12,28 +12,28 @@ import cosmology as cosm
 
 # Constants
 dc = 1.686      # Collapse threshold for nu definition
-Dv = 200.       # Spherical-overdensity halo definition
+Dv = 200.       # Spherical-overdensity halo definition from Dark Emualtor (fixed)
 np_min = 200    # Minimum number of halo particles
 npart = 2048    # Cube root of number of simulation particles
 Lbox_HR = 1000. # Box size for high-resolution simulations [Mpc/h]
 Lbox_LR = 2000. # Box size for low-resolution simulations [Mpc/h]
 
 # Maximum redshift
-zmax = 1.48
+# zmax = 1.48
 
 # Minimum and maximum values of cosmological parameters in the emulator
-wb_min = 0.0211375
-wb_max = 0.0233625
-wc_min = 0.10782
-wc_max = 0.13178
-Om_w_min = 0.54752
-Om_w_max = 0.82128
-lnAs_min = 2.4752
-lnAs_max = 3.7128
-ns_min = 0.916275
-ns_max = 1.012725
-w_min = -1.2
-w_max = -0.8
+# wb_min = 0.0211375
+# wb_max = 0.0233625
+# wc_min = 0.10782
+# wc_max = 0.13178
+# Om_w_min = 0.54752
+# Om_w_max = 0.82128
+# lnAs_min = 2.4752
+# lnAs_max = 3.7128
+# ns_min = 0.916275
+# ns_max = 1.012725
+# w_min = -1.2
+# w_max = -0.8
 
 # Fiducial cosmology
 wb_fid = 0.02225
@@ -48,20 +48,20 @@ w_fid = -1.
 log_interp_sigma = False
 
 # Accuracy
-acc_hh = 0.04
-acc_hm = 0.02
+# acc_hh = 0.04
+# acc_hm = 0.02
 
 # Distance from low/high boundary when varying cosmology along a parameter-cube direction
-low_fac = 0.15 
-high_fac = 0.85
+# low_fac = 0.15 
+# high_fac = 0.85
 
 ## Beta-NL ##
 
 # Source of linear halo bias
-# 1 - From emulator 'bias' function
-# 2 - From emulator halo-halo spectrum at large wavenumber
-# 3 - From emulator halo-matter spectrum at large wavenumber
-ibias_BNL = 2
+# bias: From emulator 'bias' function
+# halo-halo: From emulator halo-halo spectrum at large wavenumber
+# halo-matter: From emulator halo-matter spectrum at large wavenumber
+ibias_def = 'halo-halo'
 
 # Force to zero at large scales?
 
@@ -526,16 +526,15 @@ def _get_bias_mass(emu, M, redshift):
 #     return xiauto_avg/(n1*n2)
 
 
-def get_linear_halo_bias(emu, M, z, klin, Pk_klin):
+def get_linear_halo_bias(emu, M, z, klin, Pk_klin, ibias=ibias_def):
     '''
     Linear halo bias
     '''
-    ibias = ibias_BNL # Source of linear halo bias
-    if ibias == 1:
+    if ibias == 'bias':
         b = _get_bias_mass(emu, M, z)[0]
-    elif ibias == 2:
+    elif ibias == 'halo-halo':
         b = np.sqrt(emu.get_phh_mass(klin, M, M, z)/Pk_klin)
-    elif ibias == 3:
+    elif ibias == 'halo-matter':
         b = emu.get_phm_mass(klin, M, z)/Pk_klin
     else:
         raise ValueError('Linear bias recipe not recognised')
@@ -558,18 +557,19 @@ def get_halo_cross_spectrum_coefficient(emu, ks, M1, M2, z):
 
 ### Non-linear halo bias ###
 
-def get_beta_NL(emu, mass, ks, z, force_to_zero=0, mass_variable='Mass', knl=5.):
+def get_beta_NL(emu, mass, ks, z, force_to_zero=0, mass_variable='mass', knl=5.):
     '''
     Beta_NL function, function: B^NL(M1, M2, k)
     TODO: Change to accept two separate mass arguments and merge with beta_NL_1D?
+    TODO: knl unused
     '''
     # Parameters
     klin = np.array([klin_BNL]) # klin must be a numpy array
     
     # Set array name sensibly
-    if mass_variable == 'Mass':
+    if mass_variable == 'mass':
         Ms = mass
-    elif mass_variable == 'Radius':
+    elif mass_variable == 'radius':
         Rs = mass
         Ms = _mass_R(emu, Rs)
     elif mass_variable == 'nu':
@@ -635,7 +635,7 @@ def get_beta_NL(emu, mass, ks, z, force_to_zero=0, mass_variable='Mass', knl=5.)
     return beta 
 
 
-def get_beta_NL_1D(emu, Mh, mass, ks, z, force_to_zero=0, mass_variable='Mass', knl=5.):
+def get_beta_NL_1D(emu, Mh, mass, ks, z, force_to_zero=0, mass_variable='mass', knl=5.):
     '''
     One-dimensional Beta_NL function, function: B^NL(Mh, M, k)
     TODO: Change two-dimensional version to accept two separate mass arguments and get rid of this version
@@ -645,9 +645,9 @@ def get_beta_NL_1D(emu, Mh, mass, ks, z, force_to_zero=0, mass_variable='Mass', 
     Mmin = minimum_halo_mass(emu)
 
     # Set array name sensibly
-    if mass_variable == 'Mass':
+    if mass_variable == 'mass':
         Ms = mass
-    elif mass_variable == 'Radius':
+    elif mass_variable == 'radius':
         Rs = mass
         Ms = _mass_R(emu, Rs)
     elif mass_variable == 'nu':
