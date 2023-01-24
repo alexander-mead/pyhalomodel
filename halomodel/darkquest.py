@@ -7,7 +7,7 @@ from dark_emulator import darkemu
 
 # My imports
 import constants as const
-import utility_functions as utility
+import utility as util
 
 # Constants
 dc = 1.686      # Collapse threshold for nu definition
@@ -43,7 +43,7 @@ ns_fid = 0.9645
 w_fid = -1.
 
 # Parameters
-# TODO: Setting this to True buggers things up, fix it!
+# TODO: Setting this to True messes things up, fix it!
 log_interp_sigma = False
 
 # Accuracy
@@ -128,6 +128,7 @@ class cosmology():
         print('m_nu [eV]: %1.4f' % (self.m_nu))
         print()
 
+
 def random_cosmology():
     '''
     (Uniform) random cosmological parameters from within the Dark Quest hypercube
@@ -141,6 +142,7 @@ def random_cosmology():
 
     cpar = cosmology(wb=wb, wc=wc, Om_w=Om_w, lnAs=lnAs, ns=ns, w=w)
     return cpar
+
 
 def named_cosmology(name):
 
@@ -189,6 +191,7 @@ def named_cosmology(name):
     cpar = cosmology(wb=wb, wc=wc, Om_w=Om_w, lnAs=lnAs, ns=ns, w=w)
     return cpar
 
+
 def init_emulator(cpar):
     '''
     Initialise the emulator for a given set of cosmological parameters
@@ -210,6 +213,7 @@ def init_emulator(cpar):
 
     return emu
 
+
 def get_Pk_mm(emu, ks, zs, nonlinear=False):
     '''
     Matter power spectrum from emulator; either linear or non-linear
@@ -228,6 +232,7 @@ def get_Pk_mm(emu, ks, zs, nonlinear=False):
                 Pk[iz, :] = emu.get_pklin_from_z(ks, z)
     return Pk
 
+
 def minimum_halo_mass(emu):
     '''
     Minimum halo mass for the set of cosmological parameters [Msun/h]
@@ -236,20 +241,23 @@ def minimum_halo_mass(emu):
     mmin = Mbox_HR*np_min/npart**3
     return mmin
 
+
 def comoving_matter_density(emu):
     '''
     Comoving matter density [(Msun/h)/(Mpc/h)^3]
     '''
     Om_m = emu.cosmo.get_Omega0()
-    rhom = utility.comoving_matter_density(Om_m)
+    rhom = cosmology.comoving_matter_density(Om_m)
     return rhom
+
 
 def nu_R(emu, R, z):
     '''
     nu = dc/sigma [dimensionless]
     '''
-    M = Mass_R(emu, R)
+    M = mass_R(emu, R)
     return nu_M(emu, M, z)
+
 
 def nu_M(emu, M, z):
     '''
@@ -257,29 +265,33 @@ def nu_M(emu, M, z):
     '''
     return dc/sigma_M(emu)(M, z)
 
-def Radius_M(emu, M):
+
+def Lagrangian_radius(emu, M):
     '''
-    Lagrangian radius of a halo of mass M [Mpc/h]
+    Lagrangian radius (comoving) of a halo of mass M [Mpc/h]
     '''
     Om_m = emu.cosmo.get_Omega0()
-    return utility.Radius_M(M, Om_m)
+    return cosmology.Lagrangian_radius(M, Om_m)
 
-def virial_radius_M(emu, M):
-    '''
-    Virial radius of a halo of mass M [Mpc/h]
-    '''
-    return Radius_M(emu, M)/np.cbrt(Dv)
 
-def Mass_R(emu, R):
+def virial_radius(emu, M):
+    '''
+    Virial radius (comoving) of a halo of mass M [Mpc/h]
+    '''
+    return Lagrangian_radius(emu, M)/np.cbrt(Dv)
+
+
+def mass_R(emu, R):
     '''
     Mass enclosed within comoving radius R [Msun/h]
     '''
     Om_m = emu.cosmo.get_Omega0()
-    return utility.Mass_R(R, Om_m)
+    return cosmology.Mass_R(R, Om_m)
 
-def Mass_nu(emu, nu, z):
 
-    # TODO: This does both interpolation and evaluation, could split up?
+def mass_nu(emu, nu, z):
+
+    # TODO: This does both interpolation and evaluation, could/should split up?
 
     # Import
     from scipy.interpolate import InterpolatedUnivariateSpline as ius
@@ -307,11 +319,12 @@ def Mass_nu(emu, nu, z):
 
     return Mass
 
-def Mstar(emu, z):
+
+def non_linear_mass(emu, z):
     '''
     Returns non-linear mass, M* | nu(M*) = 1 [Msun/h]
     '''
-    return  Mass_nu(emu, 1., z)
+    return  mass_nu(emu, 1., z)
 
 # def sigma_M(emu, M, z):
 
@@ -366,14 +379,16 @@ def sigma_M(emu):
         sigma_interpolator = ius(Ms_internal, sigs_internal, ext='extrapolate')
     return lambda M, z: g(z)*sigma_interpolator(M)
 
+
 def sigma_R(emu, R, z):
     '''
     Root-mean-square linear overdensity fluctuation when field smoothed on scale R [dimensionless]
-    emu: An instance of DQ emulator
-    R: Radius [Mpc/h] (TODO: can this be a list?)
-    z: redshift
+    args:
+        emu: An instance of DQ emulator
+        R: Radius [Mpc/h] (TODO: can this be a list?)
+        z: redshift
     '''
-    M = Mass_R(emu, R)
+    M = mass_R(emu, R)
     return sigma_M(emu)(M, z)
 
 def get_sigma_Ms(emu, Ms, z):
@@ -387,12 +402,14 @@ def get_sigma_Ms(emu, Ms, z):
         sigmas = sigma_M(emu)(Ms, z)
     return sigmas
 
+
 def get_sigma_Rs(emu, Rs, z):
     '''
     Returns an array of sigma(Rs, z) values 
     '''
-    Ms = Mass_R(emu, Rs)
+    Ms = mass_R(emu, Rs)
     return get_sigma_Ms(emu, Ms, z)
+
 
 def get_bias_mass(emu, M, redshift):
     '''
@@ -407,6 +424,7 @@ def get_bias_mass(emu, M, redshift):
     bp = emu.get_bias(logdensp, redshift)
     bm = emu.get_bias(logdensm, redshift)
     return (bm * 10**logdensm - bp * 10**logdensp) / (10**logdensm - 10**logdensp)
+
 
 def get_dndM_mass(emu, Ms, z):
     '''
@@ -423,6 +441,7 @@ def get_dndM_mass(emu, Ms, z):
     # Evaluate the interpolator at the desired mass points
     return np.exp(dndM_interp(np.log(Ms)))
 
+
 def ndenshalo(emu, Mmin, Mmax, z):
     '''
     Calculate the number density of haloes in the range Mmin to Mmax
@@ -430,6 +449,7 @@ def ndenshalo(emu, Mmin, Mmax, z):
     '''
     vol = 1. # Fix to unity
     return emu.get_nhalo(Mmin, Mmax, vol, z)
+
 
 def mass_avg(emu, Mmin, Mmax, z, pow=1):
     '''
@@ -454,6 +474,7 @@ def mass_avg(emu, Mmin, Mmax, z, pow=1):
 
     return Mav/n
 
+
 def get_xiauto_mass_avg(emu, rs, M1min, M1max, M2min, M2max, z):
     '''
     Averages the halo-halo correlation function over mass ranges to return the weighted-by-mass-function mean version
@@ -474,8 +495,8 @@ def get_xiauto_mass_avg(emu, rs, M1min, M1max, M2min, M2max, z):
     n2 = ndenshalo(emu, M2min, M2max, z)
 
     # Arrays for halo masses
-    M1s = mead.logspace(M1min, M1max, nM)
-    M2s = mead.logspace(M2min, M2max, nM)
+    M1s = util.logspace(M1min, M1max, nM)
+    M2s = util.logspace(M2min, M2max, nM)
     
     # Get mass function interpolation
     Ms = emu.massfunc.Mlist
@@ -495,12 +516,12 @@ def get_xiauto_mass_avg(emu, rs, M1min, M1max, M2min, M2max, z):
         xiauto_interp = rbs(np.log(M1s), np.log(M2s), xiauto_mass)
 
         # Integrate interpolated functions
-        xiauto_avg[ir], _ = dblquad(lambda M1, M2: xiauto_interp(np.log(M1),np.log(M2))*np.exp(log_dndM_interp(np.log(M1))+log_dndM_interp(np.log(M2))),
-                                    M1min, M1max,
-                                    lambda M1: M2min, lambda M1: M2max,
-                                    epsabs=epsabs)
+        # TODO: Unused variables in lambda here
+        func = lambda M1, M2: xiauto_interp(np.log(M1),np.log(M2))*np.exp(log_dndM_interp(np.log(M1))+log_dndM_interp(np.log(M2)))
+        xiauto_avg[ir], _ = dblquad(func, M1min, M1max, lambda M1: M2min, lambda M1: M2max, epsabs=epsabs)
 
     return xiauto_avg/(n1*n2)
+
 
 def get_linear_halo_bias(emu, M, z, klin, Pk_klin):
     '''
@@ -516,6 +537,7 @@ def get_linear_halo_bias(emu, M, z, klin, Pk_klin):
     else:
         raise ValueError('Linear bias recipe not recognised')
     return b
+
 
 def R_hh(emu, ks, M1, M2, z):
     '''
@@ -533,7 +555,7 @@ def R_hh(emu, ks, M1, M2, z):
 
 ### Non-linear halo bias ###
 
-def get_beta_NL(emu, mass, ks, z,force_to_zero=0, mass_variable='Mass',knl  = 5.0):
+def get_beta_NL(emu, mass, ks, z, force_to_zero=0, mass_variable='Mass', knl=5.):
     '''
     Beta_NL function, function: B^NL(M1, M2, k)
     TODO: Change to accept two separate mass arguments and merge with beta_NL_1D?
@@ -546,18 +568,18 @@ def get_beta_NL(emu, mass, ks, z,force_to_zero=0, mass_variable='Mass',knl  = 5.
         Ms = mass
     elif mass_variable == 'Radius':
         Rs = mass
-        Ms = Mass_R(emu, Rs)
+        Ms = mass_R(emu, Rs)
     elif mass_variable == 'nu':
         nus = mass
-        Ms = Mass_nu(emu, nus, z)
+        Ms = mass_nu(emu, nus, z)
     else:
         raise ValueError('Error, mass variable for beta_NL not recognised')
     
     # Linear power
     Pk_lin = emu.get_pklin_from_z(ks, z)
     Pk_klin = emu.get_pklin_from_z(klin, z)
-    index_klin, klin_closest = utility.findClosestIndex(klin,ks)
-    index_knl,knl_closest = utility.findClosestIndex(knl,ks)
+    index_klin, _ = util.findClosestIndex(klin, ks)
+    #index_knl, knl_closest = util.findClosestIndex(knl, ks)
     
     # Calculate beta_NL by looping over mass arrays
     beta = np.zeros((len(Ms), len(Ms), len(ks)))
@@ -609,7 +631,8 @@ def get_beta_NL(emu, mass, ks, z,force_to_zero=0, mass_variable='Mass',knl  = 5.
          
     return beta 
 
-def get_beta_NL_1D(emu, Mh, mass, ks, z, mass_variable='Mass',force_to_zero=0):
+
+def get_beta_NL_1D(emu, Mh, mass, ks, z, force_to_zero=0, mass_variable='Mass', knl=5.):
     '''
     One-dimensional Beta_NL function, function: B^NL(Mh, M, k)
     TODO: Change two-dimensional version to accept two separate mass arguments and get rid of this version
@@ -623,16 +646,17 @@ def get_beta_NL_1D(emu, Mh, mass, ks, z, mass_variable='Mass',force_to_zero=0):
         Ms = mass
     elif mass_variable == 'Radius':
         Rs = mass
-        Ms = Mass_R(emu, Rs)
+        Ms = mass_R(emu, Rs)
     elif mass_variable == 'nu':
         nus = mass
-        Ms = Mass_nu(emu, nus, z)
+        Ms = mass_nu(emu, nus, z)
     else:
         raise ValueError('Error, mass variable for beta_NL not recognised')
 
     # Linear power
     Pk_lin = emu.get_pklin_from_z(ks, z)
     Pk_klin = emu.get_pklin_from_z(klin, z)
+    index_klin, _ = util.findClosestIndex(klin, ks)
     bh = get_linear_halo_bias(emu, Mh, z, klin, Pk_klin)
     
     # Calculate beta_NL by looping over mass arrays
@@ -668,100 +692,90 @@ def get_beta_NL_1D(emu, Mh, mass, ks, z, mass_variable='Mass',force_to_zero=0):
 
     return beta 
 
-def beta_match_metric(beta1, beta2):
-    '''
-    Single number to quantify how well two different betas match across k, M
-    Clearly the result will depend on the spacing of the M and k values
-    TODO: Probably should compute an RMS integral, but hopefully sum is sufficient
-    '''
-    diff = (beta1-beta2)**2
-    sigma = np.sqrt(diff.sum()/diff.size)
-    return sigma
 
-def beta_match_metric_k(beta1, beta2):
-    '''
-    Single number to quantify how well two different betas match across M for each k
-    Clearly result will depend on the spacing of the M values
-    TODO: Probably should compute an RMS integral, but hopefully sum is sufficient
-    '''
-    diff = (beta1-beta2)**2
-    nk = len(diff[1, 1, :])
-    sigma = np.zeros(nk)
-    for ik in range(nk):
-        sigma[ik] = np.sqrt(diff[:, :, ik].sum()/diff[:, :, ik].size)
-    return sigma
+# def beta_match_metric(beta1, beta2):
+#     '''
+#     Single number to quantify how well two different betas match across k, M
+#     Clearly the result will depend on the spacing of the M and k values
+#     TODO: Probably should compute an RMS integral, but hopefully sum is sufficient
+#     '''
+#     diff = (beta1-beta2)**2
+#     sigma = np.sqrt(diff.sum()/diff.size)
+#     return sigma
+
+
+# def beta_match_metric_k(beta1, beta2):
+#     '''
+#     Single number to quantify how well two different betas match across M for each k
+#     Clearly result will depend on the spacing of the M values
+#     TODO: Probably should compute an RMS integral, but hopefully sum is sufficient
+#     '''
+#     diff = (beta1-beta2)**2
+#     nk = len(diff[1, 1, :])
+#     sigma = np.zeros(nk)
+#     for ik in range(nk):
+#         sigma[ik] = np.sqrt(diff[:, :, ik].sum()/diff[:, :, ik].size)
+#     return sigma
 
 ### ###
 
 ### Rescaling ###
 
-def calculate_rescaling_params(emu_ori, emu_tgt, z_tgt, M1_tgt, M2_tgt):
-    '''
-    Calculates the AW10 rescaling parameters to go from the original cosmology to the target cosmology
-    '''
-    R1_tgt = Radius_M(emu_tgt, M1_tgt)
-    R2_tgt = Radius_M(emu_tgt, M2_tgt)
+# def calculate_rescaling_params(emu_ori, emu_tgt, z_tgt, M1_tgt, M2_tgt):
+#     '''
+#     Calculates the AW10 rescaling parameters to go from the original cosmology to the target cosmology
+#     '''
+#     R1_tgt = Radius_M(emu_tgt, M1_tgt)
+#     R2_tgt = Radius_M(emu_tgt, M2_tgt)
 
-    s, sm, z = utility.calculate_AW10_rescaling_parameters(z_tgt, R1_tgt, R2_tgt, 
-                                                         lambda Ri, zi: sigma_R(emu_ori, Ri, zi),
-                                                         lambda Ri, zi: sigma_R(emu_tgt, Ri, zi),
-                                                         emu_ori.cosmo.get_Omega0(),
-                                                         emu_tgt.cosmo.get_Omega0(),
-                                                        )
-    return (s, sm, z)
+#     s, sm, z = utility.calculate_AW10_rescaling_parameters(z_tgt, R1_tgt, R2_tgt, 
+#                                                          lambda Ri, zi: sigma_R(emu_ori, Ri, zi),
+#                                                          lambda Ri, zi: sigma_R(emu_tgt, Ri, zi),
+#                                                          emu_ori.cosmo.get_Omega0(),
+#                                                          emu_tgt.cosmo.get_Omega0(),
+#                                                         )
+#     return (s, sm, z)
 
 ### HOD ###
 
-def get_p_gg(self, k, redshift):
-    """get_p_gg
-
+def get_Pk_gg(emu, k, redshift):
+    '''
     Compute galaxy power spectrum :math:`\\P_\mathrm{gg}(k)`.
-
     Args:
         k (numpy array): 3 dimensional separation in :math:`h^{-1}\mathrm{Mpc}`
         redshift (float): redshift at which the galaxies are located
-
     Returns:
         numpy array: galaxy power spectrum
-    """
+    '''
     from scipy.interpolate import InterpolatedUnivariateSpline as ius
-
-    self._check_update_redshift(redshift)
-
-    self._compute_p_1hcs(redshift)
-    self._compute_p_1hss(redshift)
-    self._compute_p_2hcc(redshift)
-    self._compute_p_2hcs(redshift)
-    self._compute_p_2hss(redshift)
-
-    p_tot_1h = 2.*self.p_1hcs + self.p_1hss
-    p_tot_2h = self.p_2hcc + 2.*self.p_2hcs + self.p_2hss
-    p_gg = ius(self.fftlog_1h.k, p_tot_1h)(k)+ius(self.fftlog_2h.k, p_tot_2h)(k)
+    emu._check_update_redshift(redshift)
+    emu._compute_p_1hcs(redshift)
+    emu._compute_p_1hss(redshift)
+    emu._compute_p_2hcc(redshift)
+    emu._compute_p_2hcs(redshift)
+    emu._compute_p_2hss(redshift)
+    p_tot_1h = 2.*emu.p_1hcs+emu.p_1hss
+    p_tot_2h = emu.p_2hcc+2.*emu.p_2hcs+emu.p_2hss
+    p_gg = ius(emu.fftlog_1h.k, p_tot_1h)(k)+ius(emu.fftlog_2h.k, p_tot_2h)(k)
     return p_gg
 
-def get_p_gm(self, k, redshift):
-    """get_p_gm
 
+def get_Pk_gm(emu, k, redshift):
+    '''
     Compute galaxy matter power spectrum P_gm.
-
     Args:
         k (numpy array): 2 dimensional projected separation in :math:`h^{-1}\mathrm{Mpc}`
         redshift (float): redshift at which the lens galaxies are located
-
     Returns:
         numpy array: excess surface density in :math:`h M_\odot \mathrm{pc}^{-2}`
-    """
+    '''
     from scipy.interpolate import InterpolatedUnivariateSpline as ius
-
-    self._check_update_redshift(redshift)
-
-    self._compute_p_cen(redshift)
-    self._compute_p_cen_off(redshift)
-    self._compute_p_sat(redshift)
-
-    p_tot = self.p_cen + self.p_cen_off + self.p_sat
-
-    p_gm = ius(self.fftlog_1h.k, p_tot)(k)
+    emu._check_update_redshift(redshift)
+    emu._compute_p_cen(redshift)
+    emu._compute_p_cen_off(redshift)
+    emu._compute_p_sat(redshift)
+    p_tot = emu.p_cen+emu.p_cen_off+emu.p_sat
+    p_gm = ius(emu.fftlog_1h.k, p_tot)(k)
     return p_gm
 
 ### ###
