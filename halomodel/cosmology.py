@@ -112,12 +112,12 @@ def dlnsigma2_dlnR(R:float, Pk) -> float:
     '''
     Calculates d(ln sigma^2)/d(ln R) by integration
     '''
-    def dsigma_R_vec(R, Pk):
+    def dsigmaR_vec(R, Pk):
         kmin, kmax = 0., np.inf # Evaluate the integral and convert to a nicer form
         dsigma, _ = integrate.quad(lambda k: _dsigmaR_integrand(k, R, Pk), kmin, kmax)
         dsigma = R*dsigma/(np.pi*_sigmaR_quad(R, Pk))**2
         return dsigma
-    dsigma_func = np.vectorize(dsigma_R_vec, excluded=['Pk']) # Note that this is a function
+    dsigma_func = np.vectorize(dsigmaR_vec, excluded=['Pk']) # Note that this is a function
     return dsigma_func(R, Pk)
 
 

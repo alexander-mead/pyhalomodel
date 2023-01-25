@@ -69,7 +69,7 @@ class halo_model():
         self.hm = hm
         self.dc = dc
         self.Dv = Dv
-        self.rhom = cosmology.comoving_matter_density(Om_m)
+        self.rhom = cosmology.comoving_matter_density(Om_m) # TODO: Change name?
 
         # Write to screen
         if verbose:
@@ -271,6 +271,15 @@ class halo_model():
         '''
         nus = self._peak_height(Ms, sigmas, sigma, Pk_lin)
         return self._linear_bias_nu(nus)
+
+
+    def Lagrangian_radius(self, M):
+        '''
+        Radius [Mpc/h] of a sphere containing mass M in a homogeneous universe
+        args:
+            M: Halo mass [Msun/h]
+        '''
+        return cosmology.Lagrangian_radius(M, self.Om_m)
 
 
     def average(self, Ms:np.ndarray, fs:np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
