@@ -7,3 +7,6 @@ __pycache__/
 
 # VScode
 .vscode/
+
+# Test outputs
+halomodel/tests/results/*.dat
