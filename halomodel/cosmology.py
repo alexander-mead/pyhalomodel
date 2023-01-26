@@ -9,9 +9,8 @@ import constants as const
 # TODO: Remove commented-out stuff
 
 # Constants
-# TODO: Remove if not keeping relations
-# Dv0 = 18.*np.pi**2                  # Delta_v = ~178, EdS halo virial overdensity
-# dc0 = (3./20.)*(12.*np.pi)**(2./3.) # delta_c = ~1.686' EdS linear collapse threshold
+Dv0 = 18.*np.pi**2                  # Delta_v = ~178, EdS halo virial overdensity
+dc0 = (3./20.)*(12.*np.pi)**(2./3.) # delta_c = ~1.686' EdS linear collapse threshold
 
 # Parameters
 xmin_Tk = 1e-5 # Scale at which to switch to Taylor expansion approximation
@@ -228,23 +227,23 @@ def mass(R:float, Om_m:float) -> float:
 #     return s, sm, z
 
 
-# def dc_NakamuraSuto(Om_mz):
-#     '''
-#     LCDM fitting function for the critical linear collapse density from Nakamura & Suto 
-#     (1997; https://arxiv.org/abs/astro-ph/9612074)
-#     Cosmology dependence is very weak
-#     '''
-#     return dc0*(1.+0.012299*np.log10(Om_mz))
+def dc_NakamuraSuto(Om_mz):
+    '''
+    LCDM fitting function for the critical linear collapse density from Nakamura & Suto
+    (1997; https://arxiv.org/abs/astro-ph/9612074)
+    Cosmology dependence is very weak
+    '''
+    return dc0*(1.+0.012299*np.log10(Om_mz))
 
 
-# def Dv_BryanNorman(Om_mz):
-#     '''
-#     LCDM fitting function for virial overdensity from Bryan & Norman 
-#     (1998; https://arxiv.org/abs/astro-ph/9710107)
-#     Note that here Dv is defined relative to background matter density, 
-#     whereas in paper it is relative to critical density
-#     For Omega_m = 0.3 LCDM Dv ~ 330.
-#     '''
-#     x = Om_mz-1.
-#     Dv = Dv0+82.*x-39.*x**2
-#     return Dv/Om_mz
+def Dv_BryanNorman(Om_mz):
+    '''
+    LCDM fitting function for virial overdensity from Bryan & Norman
+    (1998; https://arxiv.org/abs/astro-ph/9710107)
+    Note that here Dv is defined relative to background matter density,
+    whereas in paper it is relative to critical density
+    For Omega_m = 0.3 LCDM Dv ~ 330.
+    '''
+    x = Om_mz-1.
+    Dv = Dv0+82.*x-39.*x**2
+    return Dv/Om_mz
