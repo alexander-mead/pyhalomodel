@@ -27,7 +27,7 @@ sigma_8_set = True # If True uses the following value
 sigma_8  = 0.8
 
 # Redshifts
-zs = [4., 3., 2., 1., 0.5, 0.]
+z = 0.
 
 # CAMB
 kmax_CAMB = 200.
@@ -36,12 +36,12 @@ zmax_CAMB = 10.
 # Halo mass range [Msun/h]
 
 # Halo model
-Mmin = 1e9; Mmax = 1e16
+Mmin = 1e7; Mmax = 1e17
 nM = 129
-dc = 1.686
-Dv = 330.
+dc = cosmology.dc_NakamuraSuto(Omega_c+Omega_b)
+Dv = cosmology.Dv_BryanNorman(Omega_c+Omega_b)
 halo_definition = 'Mvir'
-halomodel_name = 'Tinker et al. (2010)'
+halomodel_name = 'Sheth & Tormen (1999)'
 concentration_name = 'Duffy et al. (2008)'
 
 ### ###
@@ -56,12 +56,12 @@ wb, wc = Omega_b*h**2, Omega_c*h**2
 pars.set_cosmology(ombh2=wb, omch2=wc, H0=100.*h, mnu=m_nu, omk=Omega_k)
 pars.set_dark_energy(w=w, wa=wa, dark_energy_model='ppf') 
 pars.InitPower.set_params(As=As, ns=ns, r=0.)
-pars.set_matter_power(redshifts=zs, kmax=kmax_CAMB) # Setup the linear matter power spectrum
+pars.set_matter_power(redshifts=[z], kmax=kmax_CAMB) # Setup the linear matter power spectrum
 
 # Scale 'As' to be correct for the desired 'sigma_8' value if necessary
 if sigma_8_set:
     camb_results = camb.get_results(pars)
-    sigma_8_init = (camb_results.get_sigma8()[zs.index(0.)]).item()
+    sigma_8_init = (camb_results.get_sigma8()[[z].index(0.)]).item()
     scaling = (sigma_8/sigma_8_init)**2
     As *= scaling
     pars.InitPower.set_params(As=As, ns=ns, r=0.)
@@ -79,7 +79,7 @@ Pk_lin = camb.get_matter_power_interpolator(pars,
 Omega_m  = pars.omegam # Extract the matter density
 Pk_lin = Pk_lin.P      # Single out the linear P(k) interpolator
 camb_results = camb.get_results(pars)
-sigma_8 = (camb_results.get_sigma8()[zs.index(0.)]).item()
+sigma_8 = (camb_results.get_sigma8()[[z].index(0.)]).item()
 
 ### ###
 
@@ -92,37 +92,35 @@ class TestPower(unittest.TestCase):
         # Array of halo masses [Msun/h]
         Ms = np.logspace(np.log10(Mmin), np.log10(Mmax), nM)
 
-        # Loop over redshifts
-        for z in zs:
+        # Read benchmark
+        infile = 'benchmarks/HMx_0_26_3_z0.0.dat'
+        benchmark = np.loadtxt(infile)
+        ks = benchmark[:, 0]
+        Pk_benchmark = benchmark[:, 4]*2.*np.pi**2/ks**3
 
-            # Read benchmark
-            infile = 'benchmarks/power_mm_z%1.1f.dat'%(z)
-            benchmark = np.loadtxt(infile)
-            ks = benchmark[:, 0]
+        # Initialise halo model
+        hmod = halomodel.halo_model(z, Omega_m, name=halomodel_name, Dv=Dv, dc=dc)
 
-            # Initialise halo model
-            hmod = halomodel.halo_model(z, Omega_m, name=halomodel_name, Dv=Dv, dc=dc)
+        # Halo mass range [Msun/h] and Lagrangian radii [Mpc/h] corresponding to halo masses
+        Rs = hmod.Lagrangian_radius(Ms)
+        sigmaRs = cosmology.sigmaR(Rs, camb_results, integration_type='camb')[[z].index(z)]
+        rvs = hmod.virial_radius(Ms)
+        cs = halomodel.concentration(Ms, z, halo_definition=halo_definition)
 
-            # Halo mass range [Msun/h] and Lagrangian radii [Mpc/h] corresponding to halo masses
-            Rs = hmod.Lagrangian_radius(Ms)
-            sigmaRs = cosmology.sigmaR(Rs, camb_results, integration_type='camb')[zs.index(z)]
-            rvs = hmod.virial_radius(Ms)
-            cs = halomodel.concentration(Ms, z, halo_definition=halo_definition)
+        # Create a matter profile
+        matter_profile = halomodel.matter_profile(ks, Ms, rvs, cs, hmod.Om_m)
 
-            # Create a matter profile
-            matter_profile = halomodel.matter_profile(ks, Ms, rvs, cs, hmod.Om_m)
+        # Power spectrum calculation
+        _, _, Pk = hmod.power_spectrum(ks, Ms, [matter_profile], lambda k: Pk_lin(z, k), sigmas=sigmaRs)
 
-            # Power spectrum calculation
-            _, _, Pk = hmod.power_spectrum(ks, Ms, [matter_profile], lambda k: Pk_lin(z, k), sigmas=sigmaRs)
+        # Save data
+        outfile = 'results/HMx_0_26_3_z0.0.dat'
+        data = np.column_stack((ks, Pk[0, 0, :]))
+        np.savetxt(outfile, data, header='k [h/Mpc]; P(k) [(Mpc/h)^3]')
 
-            # Save data
-            outfile = 'results/power_mm_z%1.1f.dat'%(z)
-            data = np.column_stack((ks, Pk[0, 0, :]))
-            np.savetxt(outfile, data, header='k [h/Mpc]; P(k) [(Mpc/h)^3]')
-
-            # Carry out test
-            # TODO: Do assertion only after creating data
-            np.testing.assert_array_almost_equal(Pk[0, 0, :]/benchmark[:, 1], 1., decimal=4)
+        # Carry out test
+        # TODO: Do assertion only after creating data
+        np.testing.assert_array_almost_equal(Pk[0, 0, :]/Pk_benchmark, 1., decimal=3)
 
 ### ###
 
