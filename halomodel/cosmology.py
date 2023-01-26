@@ -5,6 +5,14 @@ import scipy.integrate as integrate
 # Project imports
 import constants as const
 
+# To-do list
+# TODO: Remove commented-out stuff
+
+# Constants
+# TODO: Remove if not keeping relations
+# Dv0 = 18.*np.pi**2                  # Delta_v = ~178, EdS halo virial overdensity
+# dc0 = (3./20.)*(12.*np.pi)**(2./3.) # delta_c = ~1.686' EdS linear collapse threshold
+
 # Parameters
 xmin_Tk = 1e-5 # Scale at which to switch to Taylor expansion approximation
 

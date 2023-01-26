@@ -7,9 +7,12 @@ import warnings
 import utility as util
 import cosmology
 
-# Constants
-Dv0 = 18.*np.pi**2                  # Delta_v = ~178, EdS halo virial overdensity
-dc0 = (3./20.)*(12.*np.pi)**(2./3.) # delta_c = ~1.686' EdS linear collapse threshold
+# To-do list
+# TODO: Incorporate configuration-space profiles (high priority)
+# TODO: Dedicated test suite against HMcode/HMx for different cosmologies/halo models/redshifts
+# TODO: Add more checks for Dv, dc value compatability with mass functions
+# TODO: Add covariance between profile amplitudes (low priority; hard and annoying)
+# TODO: Ms, ks -> M, k maybe?
 
 # Parameters
 dc_rel_tol = 1e-3    # Relative tolerance for checking 'closeness' of delta_c
@@ -19,7 +22,7 @@ Tinker_PBS = False   # Get the bias from the peak-background split, rather than 
 
 # Halo-model integration scheme for integration in nu
 # NOTE: Cannot use Romberg because integration is done in nu, not M, and this will generally be uneven
-# TODO: In HMx I use trapezoid because of fast osciallations, maybe I should also use that here
+# TODO: In HMx I use trapezoid because of fast osciallations, maybe should also use that here?
 halo_integration = integrate.trapezoid
 #halo_integration = integrate.simps
 
@@ -36,13 +39,6 @@ eps_deriv_mf = 1e-3 # R -> dR for numerical sigma derivative
 # beta_NL
 do_I11 = True     # Low M1, M2 portion of the integral
 do_I12_I21 = True # Low M1 or low M2 portion of the integral
-
-# To do list
-# TODO: Output halo mass function and bias (n(M); M^2 n(M)/rho; b(M)) but need dsigma integral
-# TODO: Incorporate configuration-space profiles
-# TODO: Dedicated test suite against HMcode/HMx for different cosmologies/halo models/redshifts
-# TODO: Calculate the virial radius/overdensity based on cosmology instead of using Dv 
-# TODO: Calculate the linear collapse threshold based on on cosmology instead of using the default value
 
 ### Class definition ###
 
@@ -79,10 +75,10 @@ class halo_model():
         if verbose:
             print('Initialising halo model')
             print('Scale factor: %1.3f'%(self.a))
-            print('Redshift: %1.3f'%(z))
-            print('Omega_m(z=0): %1.3f'%(Om_m))
-            print('delta_c: %1.4f'%(dc))
-            print('Delta_v: %4.1f'%(Dv))
+            print('Redshift: %1.3f'%(self.z))
+            print('Omega_m(z=0): %1.3f'%(self.Om_m))
+            print('delta_c: %1.4f'%(self.dc))
+            print('Delta_v: %4.1f'%(self.Dv))
 
         # Initialise mass functions
         if name == 'Press & Schecter (1974)':
@@ -91,6 +87,7 @@ class halo_model():
         elif name in ['Sheth & Tormen (1999)', 'Sheth, Mo & Tormen (2001)']:
             # Sheth & Tormen (1999; https://arxiv.org/abs/astro-ph/9901122)
             # Virial halo definition
+            # TODO: Check for inconsistencies with Dv, dc
             from scipy.special import gamma as Gamma
             p = 0.3
             q = 0.707
@@ -109,6 +106,7 @@ class halo_model():
             # Despali et al. (2016; https://arxiv.org/abs/1507.05627)
             # Note that this mass function is not correctly normalised
             # Virial halo definition
+            # TODO: Check for inconsistencies with Dv, dc
             self.p_ST = 0.2536
             self.q_ST = 0.7689
             self.A_ST = 0.3295*np.sqrt(2.*self.q_ST/np.pi) # Careful with factors of sqrt(2q/pi) in normalisation
@@ -692,7 +690,7 @@ def _RegularGridInterp_beta_NL_log(Ms_in:np.ndarray, ks_in:np.ndarray, beta_NL_i
 
 ### ###
 
-### Haloes and halo profiles ###
+### Halo profiles ###
 
 class halo_profile():
     '''
@@ -702,13 +700,13 @@ class halo_profile():
         norm=1., var=None, Prho=None, mass=False, discrete=False, *args):
         '''
         Class initialisation for halo profiles
-        TODO: Allow for rho(r) to be specified\n
+        TODO: Allow for configuration-space profiles to be specified\n
         Args:
             ks: array of wavenumbers [h/Mpc] going from low to high
             Ms: array of halo masses [Msun/h] going from low to high
             Ns(M): 1D array of halo profile amplitudes at halo masses 'M' (e.g., M for mass; N for galaxies)
             Uk(M, k): 2D array of normalised halo Fourier transform [dimensionless]; should have U(M, k->0) = 1
-            norm:float of normalisation (e.g., rhom for mass, ng for galaxies)
+            norm: float of normalisation (e.g., rhom for mass, ng for galaxies)
             var(M): Var(N(M)) (auto)variance in the profile amplitude at each halo mass (e.g., N for Poisson galaxies)
             Prho(r, rv, *args): 4\pi r^2\rho(r, rv, *args) for density profile
             mass: flag to determine if contributions are expected for M < M[0] (e.g., matter)
@@ -757,7 +755,6 @@ class halo_profile():
             rv: Halo virial radius [Mpc/h]
             Prho(r, rv, *args): Function Prho = 4pi*r^2*rho values at different radii
         '''
-        from scipy.integrate import trapezoid, simps, romb
         from scipy.special import spherical_jn
 
         # Spacing between points for Romberg integration
@@ -766,9 +763,9 @@ class halo_profile():
 
         # Calculate profile mean
         integrand = spherical_jn(0, k*rs)*Prho(rs, rv, *args)
-        if win_integration == romb:
+        if win_integration == integrate.romb:
             Wk = win_integration(integrand, dr)
-        elif win_integration in [trapezoid, simps]:
+        elif win_integration in [integrate.trapezoid, integrate.simps]:
             Wk = win_integration(integrand, rs)
         else:
             raise ValueError('Halo window function integration method not recognised')
@@ -918,9 +915,11 @@ def matter_profile(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, 
     return halo_profile(ks, Ms, Ms, Uk, rhom, var=None, Prho=None, mass=True, discrete=False)
 
 
-def galaxy_profile(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, rhog:float, HOD_method='Zheng et al. (2005)') -> halo_profile:
+def galaxy_profile(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, rhog:float, 
+    HOD_method='Zheng et al. (2005)') -> halo_profile:
     '''
     Pre-configured galaxy profile\n
+    # TODO: Need rhog here, but to get this requires integrating Ns, which would require hmod as argument
     Args:
         ks: Array of wavenumbers [h/Mpc]
         Ms: Array of halo masses [Msun/h]
@@ -929,7 +928,7 @@ def galaxy_profile(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, 
         rhog: Galaxy number density []
         HOD_method: String for HOD choice
     '''
-    N_cen, N_sat = HOD_mean(Ms, method='Zheng et al. (2005)')
+    N_cen, N_sat = HOD_mean(Ms, method=HOD_method)
     N_gal = N_cen+N_sat
     nM, nk = len(Ms), len(ks)
     #Uk_cen = np.zeros((nM, nk)); Uk_sat = np.zeros((nM, nk))
@@ -937,10 +936,10 @@ def galaxy_profile(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, 
     for iM, (rv, c) in enumerate(zip(rvs, cs)):
         #Uk_cen[iM, :] = halo_window_function(ks, rv, profile='delta')
         #Uk_sat[iM, :] = halo_window_function(ks, rv, c, profile='NFW')
-        UK_gal[iM, :] = halo_window_function(ks, rv, profile='isothermal')
+        Uk_gal[iM, :] = halo_window_function(ks, rv, profile='isothermal')
     #profile_cen = halo_profile(ks, Ms, N_cen, Uk_cen, rho_gal, var=None, Prho=None, mass=True, discrete=False)
     #profile_sat = halo_profile(ks, Ms, N_sat, Uk_sat, rho_gal, var=None, Prho=None, mass=True, discrete=False)
-    profile = halo_profile(ks, Ms, N_gal, Uk_gal, rho_gal, var=None, Prho=None, mass=True, discrete=False)
+    profile = halo_profile(ks, Ms, N_gal, Uk_gal, rhog, var=None, Prho=None, mass=True, discrete=False)
     return profile
 
 ### ###
@@ -1073,7 +1072,7 @@ def HOD_variance(p:float, lam:float, central_condition=False) -> tuple:
     '''
     Expected variance (and covariance) in the numbers of central and satellite galaxies
     Assumes Bernoulli statistics for centrals and Poisson statistics for satellites
-    The central condition modifies an 'underlying' Poisson distribution in a calcuable way\n
+    The central condition modifies an 'underlying' Poisson distribution in a calculable way\n
     Args:
         p: Probability of halo hosting a central galaxy
         lam: Mean number of satellite galaxies (iff central_condition=False)

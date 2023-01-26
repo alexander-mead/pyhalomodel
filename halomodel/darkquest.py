@@ -10,6 +10,9 @@ import constants as const
 import utility as util
 import cosmology as cosm
 
+# To-do list
+# TODO: Remove commented-out stuff
+
 # Constants
 dc = 1.686      # Collapse threshold for nu definition
 Dv = 200.       # Spherical-overdensity halo definition from Dark Emualtor (fixed)
@@ -55,18 +58,12 @@ log_interp_sigma = False
 # low_fac = 0.15 
 # high_fac = 0.85
 
-## Beta-NL ##
-
+# Beta-NL
 # Source of linear halo bias
-# bias: From emulator 'bias' function
-# halo-halo: From emulator halo-halo spectrum at large wavenumber
-# halo-matter: From emulator halo-matter spectrum at large wavenumber
-ibias_def = 'halo-halo'
-
-# Force to zero at large scales?
-
-# Large 'linear' scale [h/Mpc]
-klin_BNL = 0.02
+# bias_def = 'bias': From emulator 'bias' function
+bias_def = 'halo-halo' # From emulator halo-halo spectrum at large scale
+# ibias_def = 'halo-matter' # From emulator halo-matter spectrum at large scale
+klin_BNL = 0.02 # Large 'linear' scale [h/Mpc]
 
 ## ##
 
@@ -201,7 +198,7 @@ def init_emulator(cpar):
     # Start Dark Quest
     print('Initialize Dark Quest')
     emu = darkemu.base_class()
-    print('')
+    print()
 
     # Initialise emulator
     #cparam = np.array([cpar.wb, cpar.wc, cpar.Om_w, cpar.lnAs, cpar.ns, cpar.w]) # Surely this should be a dictionary
@@ -526,15 +523,15 @@ def _get_bias_mass(emu, M, redshift):
 #     return xiauto_avg/(n1*n2)
 
 
-def get_linear_halo_bias(emu, M, z, klin, Pk_klin, ibias=ibias_def):
+def get_linear_halo_bias(emu, M, z, klin, Pk_klin, method=bias_def):
     '''
     Linear halo bias
     '''
-    if ibias == 'bias':
+    if method == 'bias':
         b = _get_bias_mass(emu, M, z)[0]
-    elif ibias == 'halo-halo':
+    elif method == 'halo-halo':
         b = np.sqrt(emu.get_phh_mass(klin, M, M, z)/Pk_klin)
-    elif ibias == 'halo-matter':
+    elif method == 'halo-matter':
         b = emu.get_phm_mass(klin, M, z)/Pk_klin
     else:
         raise ValueError('Linear bias recipe not recognised')
@@ -549,7 +546,7 @@ def get_halo_cross_spectrum_coefficient(emu, ks, M1, M2, z):
     P12 = emu.get_phh_mass(ks, M1, M2, z)
     P11 = emu.get_phh_mass(ks, M1, M1, z)
     P22 = emu.get_phh_mass(ks, M2, M2, z)
-    if (P11<0).any() or (P22<0).any():
+    if (P11 < 0.).any() or (P22 < 0.).any():
         warnings.warn('Negative values in halo auto power, M1=M2='+'%0.2f'%(np.log10(M1)), RuntimeWarning)
     return P12/np.sqrt(P11*P22)
 
