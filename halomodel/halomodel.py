@@ -275,7 +275,7 @@ class halo_model():
         return self._linear_bias_nu(nus)
 
 
-    def Lagrangian_radius(self, M:float):
+    def Lagrangian_radius(self, M:float) -> float:
         '''
         Radius [Mpc/h] of a sphere containing mass M in a homogeneous universe\n
         Args:
@@ -307,7 +307,7 @@ class halo_model():
 
 
     def power_spectrum(self, ks:np.ndarray, Ms:np.ndarray, profs:list, Pk_lin, beta=None, sigmas=None, 
-        sigma=None, shot=False, discrete=True, k_trunc=None, verbose=False) -> tuple:
+        sigma=None, include_shotnoise=False, correct_discrete=True, k_trunc=None, verbose=False) -> tuple:
         '''
         Computes power spectra given that halo model. Returns the two-halo, one-halo and sum terms.
         TODO: Remove Pk_lin dependence?\n
@@ -321,7 +321,7 @@ class halo_model():
             sigma(R): Optional function to evaluate the linear sigma(R)
             shot: Should shot noise contribution be included within discrete spectra?
             discrete: Properly treat discrete tracers with <N(N-1)> rather than <N^2>?
-            k_trunc: None of wavenumber at which to truncate the one-halo term at large scales
+            k_trunc: None or wavenumber [h/Mpc] at which to truncate the one-halo term at large scales
             verbose: verbosity
         '''
         from time import time
@@ -338,7 +338,7 @@ class halo_model():
         nus = self._peak_height(Ms, sigmas, sigma, Pk_lin)
 
         # Calculate the missing halo-bias from the low-mass part of the integral
-        A = 1.-integrate.quad(lambda nu: self._mass_function_nu(nu)*self._linear_bias_nu(nu), nus[0], np.inf)[0] # from nu_min to infinity
+        A = 1.-integrate.quad(lambda nu: self._mass_function_nu(nu)*self._linear_bias_nu(nu), nus[0], np.inf)[0]
         if verbose: print('Missing halo-bias-mass from the low-mass end of the two-halo integrand:', A)
         if A < 0.:  warnings.warn('Warning: Mass function/bias correction is negative!', RuntimeWarning)
 
@@ -371,7 +371,7 @@ class halo_model():
                                                         pu.Wk[:, ik], pv.Wk[:, ik], # TODO: Replace with Uk/norm
                                                         pu.mass, pv.mass, A, beta[:, :, ik])
                         if u == v: # and ((discrete and pu.discrete) or (pu.var is not None)): # One-halo term, treat discrete auto case carefully
-                            if discrete and pu.discrete: # Treat discrete tracers
+                            if correct_discrete and pu.discrete: # Treat discrete tracers
                                 Wfac = pu.N*(pu.N-1.) # <N(N-1)> for discrete tracers
                             else:
                                 Wfac = pu.N**2 # <N^2> for others
@@ -383,9 +383,9 @@ class halo_model():
                     # Shot noise corrections
                     # If '(not discrete) and shot' or 'discrete and (not shot)' no need to do anything as shot noise already correct
                     if (u == v) and pu.discrete:
-                        if discrete and shot:
+                        if correct_discrete and include_shotnoise:
                             Pk_1h_array[u, v, :] += PSNs[u] # Need to add shot noise
-                        elif (not discrete) and (not shot):
+                        elif (not correct_discrete) and (not include_shotnoise):
                             warnings.warn('Warning: Subtracting shot noise while not treating discreteness properly is dangerous', RuntimeWarning)
                             Pk_1h_array[u, v, :] -= PSNs[u] # Need to subtract shot noise
                     if k_trunc is not None: Pk_1h_array[u, v, :] *= 1.-np.exp(-(ks/k_trunc)**2) # Suppress one-halo term
@@ -912,7 +912,7 @@ def matter_profile(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, 
     Uk = np.zeros((len(Ms), len(ks)))
     for iM, (rv, c) in enumerate(zip(rvs, cs)):
         Uk[iM, :] = _win_NFW(ks, rv, c)
-    return halo_profile(ks, Ms, Ms, Uk, rhom, var=None, Prho=None, mass=True, discrete=False)
+    return halo_profile(ks, Ms, Ms, Uk, rhom, mass=True, discrete=False)
 
 
 def galaxy_profile(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, rhog:float, 
