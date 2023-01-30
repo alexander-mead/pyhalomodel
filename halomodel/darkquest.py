@@ -417,13 +417,13 @@ def _get_bias_mass(emu, M, redshift):
     Taken from the pre-release version of Dark Quest given to me by Takahiro
     I am not sure why this functionality was omitted from the final version
     '''
-    Mp = M * 1.01
-    Mm = M * 0.99
+    Mp = M*1.01
+    Mm = M*0.99
     logdensp = np.log10(emu.mass_to_dens(Mp, redshift))
     logdensm = np.log10(emu.mass_to_dens(Mm, redshift))
     bp = emu.get_bias(logdensp, redshift)
     bm = emu.get_bias(logdensm, redshift)
-    return (bm * 10**logdensm - bp * 10**logdensp) / (10**logdensm - 10**logdensp)
+    return (bm*10**logdensm - bp*10**logdensp) / (10**logdensm-10**logdensp)
 
 
 # def get_dndM_mass(emu, Ms, z):
