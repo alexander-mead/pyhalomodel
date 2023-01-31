@@ -365,7 +365,7 @@ class halo_model():
                         if beta is None: # Two-halo term, treat non-linear halo bias carefully
                             Pk_2h_array[u, v, ik] = self._Pk_2h(Pk_lin, k, Ms, nus, 
                                                         pu.Wk[:, ik], pv.Wk[:, ik], # TODO: Replace with Uk/norm
-                                                        pu.mass, pv.mass, A) # TODO: Remove pu.norm from A*pu.norm
+                                                        pu.mass, pv.mass, A)
                         else:
                             Pk_2h_array[u, v, ik] = self._Pk_2h(Pk_lin, k, Ms, nus, 
                                                         pu.Wk[:, ik], pv.Wk[:, ik], # TODO: Replace with Uk/norm
@@ -600,7 +600,7 @@ class halo_model():
         elif sigma is not None:
             nus = self.dc/sigma(Rs) # ...otherwise evaluate the provided sigma(R) function or...
         elif Pk_lin is not None:
-            nus = self.dc/cosmology.sigmaR(Rs, Pk_lin, integration_type='quad') ### ...otherwise integrate
+            nus = self.dc/cosmology.sigmaR(Rs, Pk_lin, integration_type='quad') # ...otherwise integrate
         else:
             raise ValueError('Error, you need to specify (at least) one of Pk_lin, sigma or sigmas') 
         return nus
@@ -836,17 +836,17 @@ class halo_profile():
 
 ### Halo profiles in Fourier space ###
 
-def halo_window_function(k:float, rv:float, *args, profile='NFW'):
+def halo_window_function(k:np.ndarray, rv:np.ndarray, *args, profile='NFW') -> np.ndarray:
     '''
     Normalised Fourier tranform for a delta-function profile (unity)\n
     Args:
-        k: Fourier wavenumber [h/Mpc]
-        rv: Halo virial radius [Mpc/h]
-        profile: delta, isothermal, NFW
+        k: Array of Fourier wavenumbers [h/Mpc]
+        rv: Array of halo virial radii [Mpc/h]
         *args: Additional arguments for halo profiles (e.g., concentration)
+        profile: delta, isothermal, NFW
     '''
     if profile == 'delta':
-        Wk = 1.
+        Wk = np.ones((len(rv), len(k)))
     elif profile == 'isothermal':
         Wk = _win_isothermal(k, rv)
     elif profile == 'NFW':
@@ -856,37 +856,46 @@ def halo_window_function(k:float, rv:float, *args, profile='NFW'):
     return Wk
 
 
-def _win_isothermal(k:float, rv:float) -> float:
+def _win_isothermal(ks:np.ndarray, rvs:np.ndarray) -> np.ndarray:
     '''
-    Normalised Fourier transform for an isothermal profile\n
+    Normalised Fourier transform for an isothermal profile
+    # TODO: Remove loop over mass?\n
     Args:
-        k: Fourier wavenumber [h/Mpc]
-        rv: Halo virial radius [Mpc/h]
+        ks: Array of Fourier wavenumber [h/Mpc]
+        rvs: Array of halo virial radius [Mpc/h]
     '''
     from scipy.special import sici
-    Si, _ = sici(k*rv)
-    return Si/(k*rv)
+    Wk = np.zeros((len(rvs), len(ks)))
+    for iM, rv in enumerate(rvs):
+        Si, _ = sici(ks*rv)
+        Wk[iM, :] = Si/(ks*rv)
+    return Wk
 
 
-def _win_NFW(k:float, rv:float, c:float) -> float:
+def _win_NFW(k:np.ndarray, rvs:np.ndarray, cs:np.ndarray) -> np.ndarray:
     '''
-    Normalised Fourier transform for an NFW profile\n
+    Normalised Fourier transform for an NFW profile
+    # TODO: k conflicts with ks in ks = k*rs, a bit confusing
+    # TODO: Remove loop over mass?\n
     Args:
         k: Fourier wavenumber [h/Mpc]
         rv: Halo virial radius [Mpc/h]
         c: Halo concentration
     '''
     from scipy.special import sici
-    rs = rv/c
-    kv = k*rv
-    ks = k*rs
-    Sisv, Cisv = sici(ks+kv)
-    Sis, Cis = sici(ks)
-    f1 = np.cos(ks)*(Cisv-Cis)
-    f2 = np.sin(ks)*(Sisv-Sis)
-    f3 = np.sin(kv)/(ks+kv)
-    f4 = _NFW_factor(c)
-    return (f1+f2-f3)/f4
+    Wk = np.zeros((len(rvs), len(k)))
+    for iM, (rv, c) in enumerate(zip(rvs, cs)):
+        rs = rv/c
+        kv = k*rv
+        ks = k*rs
+        Sisv, Cisv = sici(ks+kv)
+        Sis, Cis = sici(ks)
+        f1 = np.cos(ks)*(Cisv-Cis)
+        f2 = np.sin(ks)*(Sisv-Sis)
+        f3 = np.sin(kv)/(ks+kv)
+        f4 = _NFW_factor(c)
+        Wk[iM, :] = (f1+f2-f3)/f4
+    return Wk
 
 
 def _NFW_factor(c:float) -> float:
@@ -909,9 +918,7 @@ def matter_profile(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, 
         Om_m: Cosmological matter density
     '''
     rhom = cosmology.comoving_matter_density(Om_m)
-    Uk = np.zeros((len(Ms), len(ks)))
-    for iM, (rv, c) in enumerate(zip(rvs, cs)):
-        Uk[iM, :] = _win_NFW(ks, rv, c)
+    Uk = halo_window_function(ks, rvs, cs, profile='NFW')
     return halo_profile(ks, Ms, Ms, Uk, rhom, mass=True, discrete=False)
 
 
@@ -930,17 +937,35 @@ def galaxy_profile(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, 
     '''
     N_cen, N_sat = HOD_mean(Ms, method=HOD_method)
     N_gal = N_cen+N_sat
-    nM, nk = len(Ms), len(ks)
-    #Uk_cen = np.zeros((nM, nk)); Uk_sat = np.zeros((nM, nk))
-    Uk_gal = np.zeros((nM, nk))
-    for iM, (rv, c) in enumerate(zip(rvs, cs)):
-        #Uk_cen[iM, :] = halo_window_function(ks, rv, profile='delta')
-        #Uk_sat[iM, :] = halo_window_function(ks, rv, c, profile='NFW')
-        Uk_gal[iM, :] = halo_window_function(ks, rv, profile='isothermal')
-    #profile_cen = halo_profile(ks, Ms, N_cen, Uk_cen, rho_gal, var=None, Prho=None, mass=True, discrete=False)
-    #profile_sat = halo_profile(ks, Ms, N_sat, Uk_sat, rho_gal, var=None, Prho=None, mass=True, discrete=False)
-    profile = halo_profile(ks, Ms, N_gal, Uk_gal, rhog, var=None, Prho=None, mass=True, discrete=False)
+    V_cen, V_sat, _ = HOD_variance(N_cen, N_sat)
+    V_gal = V_cen+V_sat
+    Uk_gal = halo_window_function(ks, rvs, profile='isothermal')
+    #Uk_gal = halo_window_function(ks, rvs, cs, profile='NFW')
+    profile = halo_profile(ks, Ms, N_gal, Uk_gal, rhog, var=V_gal, mass=False, discrete=True)
     return profile
+
+
+def central_satellite_profiles(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, rhog:float, 
+    HOD_method='Zheng et al. (2005)') -> tuple:
+    '''
+    Pre-configured central and satellite galaxy profiles\n
+    # TODO: Need rhog here, but to get this requires integrating Ns, which would require hmod as argument
+    Args:
+        ks: Array of wavenumbers [h/Mpc]
+        Ms: Array of halo masses [Msun/h]
+        rvs: Array of halo virial radii [Mpc/h]
+        cs: Array of halo concentrations
+        rhog: Galaxy number density []
+        HOD_method: String for HOD choice
+    '''
+    N_cen, N_sat = HOD_mean(Ms, method=HOD_method)
+    V_cen, V_sat, _ = HOD_variance(N_cen, N_sat)
+    Uk_cen = halo_window_function(ks, rvs, profile='delta')
+    Uk_sat = halo_window_function(ks, rvs, profile='isothermal')
+    #Uk_sat = halo_window_function(ks, rvs, cs, profile='NFW')
+    profile_cen = halo_profile(ks, Ms, N_cen, Uk_cen, rhog, var=V_cen, mass=False, discrete=True)
+    profile_sat = halo_profile(ks, Ms, N_sat, Uk_sat, rhog, var=V_sat, mass=False, discrete=True)
+    return profile_cen, profile_sat
 
 ### ###
 
