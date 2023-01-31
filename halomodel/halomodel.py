@@ -306,7 +306,7 @@ class halo_model():
         return halo_integration(integrand, nus)*self.rhom
 
 
-    def power_spectrum(self, ks:np.ndarray, Ms:np.ndarray, profs:list, Pk_lin, beta=None, sigmas=None, 
+    def power_spectrum(self, ks:np.ndarray, Ms:np.ndarray, profiles:list, Pk_lin, beta=None, sigmas=None, 
         sigma=None, include_shotnoise=False, correct_discrete=True, k_trunc=None, verbose=False) -> tuple:
         '''
         Computes power spectra given that halo model. Returns the two-halo, one-halo and sum terms.
@@ -314,13 +314,13 @@ class halo_model():
         Inputs
             ks: Array of wavenumbers [h/Mpc]
             Ms: Array of halo masses [Msun/h]
-            profiles: List of halo profiles from haloprof class
+            profiles: List of halo profiles from halo_profile class
             Pk_lin(k): Function to evaluate the linear power spectrum [(Mpc/h)^3]
             beta(M1, M2, k): Optional array of beta_NL values at points Ms, Ms, ks
             sigmas(Ms): Optional pre-computed array of linear sigma(M) values corresponding to Ms
             sigma(R): Optional function to evaluate the linear sigma(R)
-            shot: Should shot noise contribution be included within discrete spectra?
-            discrete: Properly treat discrete tracers with <N(N-1)> rather than <N^2>?
+            include_shotnoise: Should shot noise contribution be included within discrete spectra?
+            correct_discrete: Properly treat discrete tracers with <N(N-1)> rather than <N^2>?
             k_trunc: None or wavenumber [h/Mpc] at which to truncate the one-halo term at large scales
             verbose: verbosity
         '''
@@ -328,11 +328,11 @@ class halo_model():
         t1 = time() # Initial time
 
         # Checks
-        if type(profs) != list: raise TypeError('N must be list')
-        nf = len(profs) # Number of profiles
-        for prof in profs:
-            if (ks != prof.k).all(): raise ValueError('k arrays must all be identical to those in profiles')
-            if (Ms != prof.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
+        if type(profiles) != list: raise TypeError('N must be list')
+        nf = len(profiles) # Number of profiles
+        for profile in profiles:
+            if (ks != profile.k).all(): raise ValueError('k arrays must all be identical to those in profiles')
+            if (Ms != profile.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
 
         # Create arrays of R (Lagrangian radius) and nu values that correspond to the halo mass
         nus = self._peak_height(Ms, sigmas, sigma, Pk_lin)
@@ -344,7 +344,7 @@ class halo_model():
 
         # Shot noise calculations
         PSNs = []
-        for p in profs:
+        for p in profiles:
             if p.discrete:
                 PSN = self._Pk_1h(Ms, nus, p.N/p.norm**2)
             else:
@@ -358,8 +358,8 @@ class halo_model():
         Pk_hm_array = np.zeros((nf, nf, nk))
 
         # Loop over halo profiles
-        for u, pu in enumerate(profs): 
-            for v, pv in enumerate(profs):
+        for u, pu in enumerate(profiles): 
+            for v, pv in enumerate(profiles):
                 if u <= v:
                     for ik, k in enumerate(ks): # Loop over wavenumbers
                         if beta is None: # Two-halo term, treat non-linear halo bias carefully
@@ -483,7 +483,7 @@ class halo_model():
         return integral*self.rhom**2
 
 
-    def cross_spectrum_at_halo_mass(self, ks:np.ndarray, Ms:np.ndarray, profs:list, Mh:float,
+    def cross_spectrum_at_halo_mass(self, ks:np.ndarray, Ms:np.ndarray, profiles:list, Mh:float,
         Pk_lin, beta=None, sigmas=None, sigma=None, verbose=True) -> tuple:
         '''
         Computes the power spectrum of a single tracer crossed with haloes of a specific mass
@@ -491,7 +491,7 @@ class halo_model():
         Args:
             ks: Array of wavenumbers [h/Mpc]
             Ms: Array of halo masses [Msun/h]
-            profs: A list of halo profiles (haloprof class)
+            profiles: A list of halo profiles (halo_profile class)
             Mh: Halo mass at which to evaluatae cross spectra [Msun/h]
             Pk_lin(k): Function to evaluate the linear power spectrum [(Mpc/h)^3]
             beta(Ms, ks): Optional array of beta_NL values at points Ms, ks
@@ -504,11 +504,11 @@ class halo_model():
         t1 = time() # Initial time
 
         # Checks
-        if type(profs) != list: raise TypeError('N must be list of length 2')
-        nf = len(profs) # Number of profiles
-        for prof in profs:
-            if (ks != prof.k).all(): raise ValueError('k arrays must all be identical to those in profiles')
-            if (Ms != prof.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
+        if type(profiles) != list: raise TypeError('N must be list of length 2')
+        nf = len(profiles) # Number of profiles
+        for profile in profiles:
+            if (ks != profile.k).all(): raise ValueError('k arrays must all be identical to those in profiles')
+            if (Ms != profile.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
 
         # Create arrays of R (Lagrangian radius) and nu values that correspond to the halo mass
         nus = self._peak_height(Ms, sigmas, sigma, Pk_lin)
@@ -524,10 +524,10 @@ class halo_model():
         nu_M_interp = interp1d(np.log(Ms), nus, kind='cubic')
         nuh = nu_M_interp(np.log(Mh))
         Whs = []
-        for prof in profs:
-            Wh = np.empty_like(prof.Wk[0, :])
+        for profile in profiles:
+            Wh = np.empty_like(profile.Wk[0, :])
             for ik, _ in enumerate(ks):
-                WM_interp = interp1d(np.log(Ms), prof.Wk[:, ik], kind='cubic')
+                WM_interp = interp1d(np.log(Ms), profile.Wk[:, ik], kind='cubic')
                 Wh[ik] = WM_interp(np.log(Mh))
             Whs.append(Wh)
 
@@ -536,12 +536,12 @@ class halo_model():
         Pk_2h_array = np.zeros((nf, nk))
         Pk_1h_array = np.zeros((nf, nk))
         Pk_hm_array = np.zeros((nf, nk))
-        for u, prof in enumerate(profs):
+        for u, profile in enumerate(profiles):
             for ik, k in enumerate(ks):
                 if beta is None:
-                    Pk_2h_array[u, ik] = self._Pk_2h_hu(Pk_lin, k, Ms, nuh, nus, prof.Wk[:, ik], prof.mass, A)
+                    Pk_2h_array[u, ik] = self._Pk_2h_hu(Pk_lin, k, Ms, nuh, nus, profile.Wk[:, ik], profile.mass, A)
                 else:
-                    Pk_2h_array[u, ik] = self._Pk_2h_hu(Pk_lin, k, Ms, nuh, nus, prof.Wk[:, ik], prof.mass, A, beta[:, ik])
+                    Pk_2h_array[u, ik] = self._Pk_2h_hu(Pk_lin, k, Ms, nuh, nus, profile.Wk[:, ik], profile.mass, A, beta[:, ik])
                 Pk_1h_array[ik] = Whs[u][ik] # Simply the halo profile at M=Mh here
                 Pk_hm_array[ik] = Pk_2h_array[ik]+Pk_1h_array[ik]
         t2 = time() # Final time
@@ -922,50 +922,50 @@ def matter_profile(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, 
     return halo_profile(ks, Ms, Ms, Uk, rhom, mass=True, discrete=False)
 
 
-def galaxy_profile(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, rhog:float, 
-    HOD_method='Zheng et al. (2005)') -> halo_profile:
-    '''
-    Pre-configured galaxy profile\n
-    # TODO: Need rhog here, but to get this requires integrating Ns, which would require hmod as argument
-    Args:
-        ks: Array of wavenumbers [h/Mpc]
-        Ms: Array of halo masses [Msun/h]
-        rvs: Array of halo virial radii [Mpc/h]
-        cs: Array of halo concentrations
-        rhog: Galaxy number density []
-        HOD_method: String for HOD choice
-    '''
-    N_cen, N_sat = HOD_mean(Ms, method=HOD_method)
-    N_gal = N_cen+N_sat
-    V_cen, V_sat, _ = HOD_variance(N_cen, N_sat)
-    V_gal = V_cen+V_sat
-    Uk_gal = halo_window_function(ks, rvs, profile='isothermal')
-    #Uk_gal = halo_window_function(ks, rvs, cs, profile='NFW')
-    profile = halo_profile(ks, Ms, N_gal, Uk_gal, rhog, var=V_gal, mass=False, discrete=True)
-    return profile
+# def galaxy_profile(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, rhog:float, 
+#     HOD_method='Zheng et al. (2005)') -> halo_profile:
+#     '''
+#     Pre-configured galaxy profile\n
+#     # TODO: Need rhog here, but to get this requires integrating Ns, which would require hmod as argument
+#     Args:
+#         ks: Array of wavenumbers [h/Mpc]
+#         Ms: Array of halo masses [Msun/h]
+#         rvs: Array of halo virial radii [Mpc/h]
+#         cs: Array of halo concentrations
+#         rhog: Galaxy number density []
+#         HOD_method: String for HOD choice
+#     '''
+#     N_cen, N_sat = HOD_mean(Ms, method=HOD_method)
+#     N_gal = N_cen+N_sat
+#     V_cen, V_sat, _ = HOD_variance(N_cen, N_sat)
+#     V_gal = V_cen+V_sat
+#     Uk_gal = halo_window_function(ks, rvs, profile='isothermal')
+#     #Uk_gal = halo_window_function(ks, rvs, cs, profile='NFW')
+#     profile = halo_profile(ks, Ms, N_gal, Uk_gal, rhog, var=V_gal, mass=False, discrete=True)
+#     return profile
 
 
-def central_satellite_profiles(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, rhog:float, 
-    HOD_method='Zheng et al. (2005)') -> tuple:
-    '''
-    Pre-configured central and satellite galaxy profiles\n
-    # TODO: Need rhog here, but to get this requires integrating Ns, which would require hmod as argument
-    Args:
-        ks: Array of wavenumbers [h/Mpc]
-        Ms: Array of halo masses [Msun/h]
-        rvs: Array of halo virial radii [Mpc/h]
-        cs: Array of halo concentrations
-        rhog: Galaxy number density []
-        HOD_method: String for HOD choice
-    '''
-    N_cen, N_sat = HOD_mean(Ms, method=HOD_method)
-    V_cen, V_sat, _ = HOD_variance(N_cen, N_sat)
-    Uk_cen = halo_window_function(ks, rvs, profile='delta')
-    Uk_sat = halo_window_function(ks, rvs, profile='isothermal')
-    #Uk_sat = halo_window_function(ks, rvs, cs, profile='NFW')
-    profile_cen = halo_profile(ks, Ms, N_cen, Uk_cen, rhog, var=V_cen, mass=False, discrete=True)
-    profile_sat = halo_profile(ks, Ms, N_sat, Uk_sat, rhog, var=V_sat, mass=False, discrete=True)
-    return profile_cen, profile_sat
+# def central_satellite_profiles(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, rhog:float, 
+#     HOD_method='Zheng et al. (2005)') -> tuple:
+#     '''
+#     Pre-configured central and satellite galaxy profiles\n
+#     # TODO: Need rhog here, but to get this requires integrating Ns, which would require hmod as argument
+#     Args:
+#         ks: Array of wavenumbers [h/Mpc]
+#         Ms: Array of halo masses [Msun/h]
+#         rvs: Array of halo virial radii [Mpc/h]
+#         cs: Array of halo concentrations
+#         rhog: Galaxy number density []
+#         HOD_method: String for HOD choice
+#     '''
+#     N_cen, N_sat = HOD_mean(Ms, method=HOD_method)
+#     V_cen, V_sat, _ = HOD_variance(N_cen, N_sat)
+#     Uk_cen = halo_window_function(ks, rvs, profile='delta')
+#     Uk_sat = halo_window_function(ks, rvs, profile='isothermal')
+#     #Uk_sat = halo_window_function(ks, rvs, cs, profile='NFW')
+#     profile_cen = halo_profile(ks, Ms, N_cen, Uk_cen, rhog, var=V_cen, mass=False, discrete=True)
+#     profile_sat = halo_profile(ks, Ms, N_sat, Uk_sat, rhog, var=V_sat, mass=False, discrete=True)
+#     return profile_cen, profile_sat
 
 ### ###
 
