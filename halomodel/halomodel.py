@@ -306,7 +306,7 @@ class halo_model():
         return halo_integration(integrand, nus)*self.rhom
 
 
-    def power_spectrum(self, ks:np.ndarray, Ms:np.ndarray, profiles:list, Pk_lin, beta=None, sigmas=None, 
+    def power_spectrum(self, ks:np.ndarray, Ms:np.ndarray, profiles:dict, Pk_lin, beta=None, sigmas=None, 
         sigma=None, include_shotnoise=False, correct_discrete=True, k_trunc=None, verbose=False) -> tuple:
         '''
         Computes power spectra given that halo model. Returns the two-halo, one-halo and sum terms.
@@ -314,7 +314,7 @@ class halo_model():
         Inputs
             ks: Array of wavenumbers [h/Mpc]
             Ms: Array of halo masses [Msun/h]
-            profiles: List of halo profiles from halo_profile class
+            profiles: Dictionary of halo profiles from halo_profile class and corresponding field names
             Pk_lin(k): Function to evaluate the linear power spectrum [(Mpc/h)^3]
             beta(M1, M2, k): Optional array of beta_NL values at points Ms, Ms, ks
             sigmas(Ms): Optional pre-computed array of linear sigma(M) values corresponding to Ms
@@ -328,9 +328,8 @@ class halo_model():
         t1 = time() # Initial time
 
         # Checks
-        if type(profiles) != list: raise TypeError('N must be list')
-        nf = len(profiles) # Number of profiles
-        for profile in profiles:
+        if type(profiles) != dict: raise TypeError('profiles must be a dictionary')
+        for profile in profiles.values():
             if (ks != profile.k).all(): raise ValueError('k arrays must all be identical to those in profiles')
             if (Ms != profile.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
 
@@ -343,63 +342,69 @@ class halo_model():
         if A < 0.:  warnings.warn('Warning: Mass function/bias correction is negative!', RuntimeWarning)
 
         # Shot noise calculations
-        PSNs = []
-        for p in profiles:
-            if p.discrete:
-                PSN = self._Pk_1h(Ms, nus, p.N/p.norm**2)
-            else:
-                PSN = 0.
-            PSNs.append(PSN)
+        Pk_SN = {}
+        for name, profile in profiles.items():
+            Pk_SN[name] = self._Pk_1h(Ms, nus, profile.N/profile.norm**2) if profile.discrete else 0.
 
         # Fill arrays for results
-        nk = len(ks)
-        Pk_2h_array = np.zeros((nf, nf, nk))
-        Pk_1h_array = np.zeros((nf, nf, nk))
-        Pk_hm_array = np.zeros((nf, nf, nk))
+        Pk_2h_dict, Pk_1h_dict, Pk_hm_dict = {}, {}, {}
+        Pk_2h, Pk_1h = np.zeros_like(ks), np.zeros_like(ks)
 
-        # Loop over halo profiles
-        for u, pu in enumerate(profiles): 
-            for v, pv in enumerate(profiles):
-                if u <= v:
+        # Loop over halo profiles/fields
+        for iu, (name_u, profile_u) in enumerate(profiles.items()): 
+            for iv, (name_v, profile_v) in enumerate(profiles.items()):
+                power_name = name_u+'-'+name_v # Name for this two-point combination
+                reverse_name = name_v+'-'+name_u # Reverse name to avoid double computations for cross terms
+                if verbose: print('Calculating power:', power_name)
+                if iu <= iv:
                     for ik, k in enumerate(ks): # Loop over wavenumbers
-                        if beta is None: # Two-halo term, treat non-linear halo bias carefully
-                            Pk_2h_array[u, v, ik] = self._Pk_2h(Pk_lin, k, Ms, nus, 
-                                                        pu.Wk[:, ik], pv.Wk[:, ik], # TODO: Replace with Uk/norm
-                                                        pu.mass, pv.mass, A)
+
+                        # Two-halo term, treat non-linear halo bias carefully
+                        if beta is None: 
+                            Pk_2h[ik] = self._Pk_2h(Pk_lin, k, Ms, nus, 
+                                                    profile_u.Wk[:, ik], profile_v.Wk[:, ik], # TODO: Replace with Uk/norm
+                                                    profile_u.mass, profile_v.mass, A)
                         else:
-                            Pk_2h_array[u, v, ik] = self._Pk_2h(Pk_lin, k, Ms, nus, 
-                                                        pu.Wk[:, ik], pv.Wk[:, ik], # TODO: Replace with Uk/norm
-                                                        pu.mass, pv.mass, A, beta[:, :, ik])
-                        if u == v: # and ((discrete and pu.discrete) or (pu.var is not None)): # One-halo term, treat discrete auto case carefully
-                            if correct_discrete and pu.discrete: # Treat discrete tracers
-                                Wfac = pu.N*(pu.N-1.) # <N(N-1)> for discrete tracers
+                            Pk_2h[ik] = self._Pk_2h(Pk_lin, k, Ms, nus, 
+                                                    profile_u.Wk[:, ik], profile_v.Wk[:, ik], # TODO: Replace with Uk/norm
+                                                    profile_u.mass, profile_v.mass, A, beta[:, :, ik])
+
+                        # One-halo term, treat discrete auto case carefully
+                        if name_u == name_v: 
+                            if correct_discrete and profile_u.discrete: # Treat discrete tracers
+                                Wfac = profile_u.N*(profile_u.N-1.) # <N(N-1)> for discrete tracers
                             else:
-                                Wfac = pu.N**2 # <N^2> for others
-                            if pu.var is not None: Wfac += pu.var # Add variance
-                            Wprod = Wfac*(pu.Uk[:, ik]/pu.norm)**2 # Multiply by factors of normalisataion and profile
+                                Wfac = profile_u.N**2 # <N^2> for others
+                            if profile_u.var is not None: Wfac += profile_u.var # Add variance
+                            Wprod = Wfac*(profile_u.Uk[:, ik]/profile_u.norm)**2 # Multiply by factors of normalisataion and profile
                         else:
-                            Wprod = pu.Wk[:, ik]*pv.Wk[:, ik] # TODO: Replace with Uk/norm
-                        Pk_1h_array[u, v, ik] = self._Pk_1h(Ms, nus, Wprod)
+                            Wprod = profile_u.Wk[:, ik]*profile_v.Wk[:, ik] # TODO: Replace with Uk/norm
+                        Pk_1h[ik] = self._Pk_1h(Ms, nus, Wprod)
+
                     # Shot noise corrections
                     # If '(not discrete) and shot' or 'discrete and (not shot)' no need to do anything as shot noise already correct
-                    if (u == v) and pu.discrete:
+                    if (name_u == name_v) and profile_u.discrete:
                         if correct_discrete and include_shotnoise:
-                            Pk_1h_array[u, v, :] += PSNs[u] # Need to add shot noise
+                            Pk_1h += Pk_SN[name_u] # Need to add shot noise
                         elif (not correct_discrete) and (not include_shotnoise):
                             warnings.warn('Warning: Subtracting shot noise while not treating discreteness properly is dangerous', RuntimeWarning)
-                            Pk_1h_array[u, v, :] -= PSNs[u] # Need to subtract shot noise
-                    if k_trunc is not None: Pk_1h_array[u, v, :] *= 1.-np.exp(-(ks/k_trunc)**2) # Suppress one-halo term
-                    Pk_hm_array[u, v, :] = Pk_2h_array[u, v, :]+Pk_1h_array[u, v, :] # Sum for total
+                            Pk_1h[:] -= Pk_SN[name_u] # Need to subtract shot noise
+                    if k_trunc is not None: Pk_1h *= 1.-np.exp(-(ks/k_trunc)**2) # Suppress one-halo term
+
+                    # Finish
+                    Pk_2h_dict[power_name], Pk_1h_dict[power_name] = Pk_2h.copy(), Pk_1h.copy()
+                    Pk_hm_dict[power_name] = Pk_2h_dict[power_name]+Pk_1h_dict[power_name]
+
                 else:
                     # No need to do these calculations twice
-                    Pk_2h_array[u, v, :] = Pk_2h_array[v, u, :]
-                    Pk_1h_array[u, v, :] = Pk_1h_array[v, u, :]
-                    Pk_hm_array[u, v, :] = Pk_hm_array[v, u, :]
+                    Pk_2h_dict[power_name] = Pk_2h_dict[reverse_name]
+                    Pk_1h_dict[power_name] = Pk_1h_dict[reverse_name]
+                    Pk_hm_dict[power_name] = Pk_hm_dict[reverse_name]
 
         # Finish
         t2 = time() # Final time
         if verbose: print('Halomodel calculation time [s]:', t2-t1, '\n')
-        return Pk_2h_array, Pk_1h_array, Pk_hm_array
+        return Pk_2h_dict, Pk_1h_dict, Pk_hm_dict
 
 
     def _Pk_2h(self, Pk_lin, k:float, Ms:np.ndarray, nus:np.ndarray, 
