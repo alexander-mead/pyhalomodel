@@ -488,15 +488,15 @@ class halo_model():
         return integral*self.rhom**2
 
 
-    def cross_spectrum_at_halo_mass(self, ks:np.ndarray, Ms:np.ndarray, profiles:list, Mh:float,
+    def power_spectrum_cross_halo_mass(self, ks:np.ndarray, Ms:np.ndarray, profiles:dict, Mh:float,
         Pk_lin, beta=None, sigmas=None, sigma=None, verbose=True) -> tuple:
         '''
-        Computes the power spectrum of a single tracer crossed with haloes of a specific mass
+        Computes the power spectrum of a single tracer crossed with haloes of a single specific mass
         TODO: Remove Pk_lin dependence?\n
         Args:
             ks: Array of wavenumbers [h/Mpc]
             Ms: Array of halo masses [Msun/h]
-            profiles: A list of halo profiles (halo_profile class)
+            profiles: A dictionary of halo profiles (halo_profile class) with associated field names
             Mh: Halo mass at which to evaluatae cross spectra [Msun/h]
             Pk_lin(k): Function to evaluate the linear power spectrum [(Mpc/h)^3]
             beta(Ms, ks): Optional array of beta_NL values at points Ms, ks
@@ -509,8 +509,7 @@ class halo_model():
         t1 = time() # Initial time
 
         # Checks
-        if type(profiles) != list: raise TypeError('N must be list of length 2')
-        nf = len(profiles) # Number of profiles
+        if type(profiles) != dict: raise TypeError('profiles must be supplied as a dictionary')
         for profile in profiles:
             if (ks != profile.k).all(): raise ValueError('k arrays must all be identical to those in profiles')
             if (Ms != profile.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
@@ -521,40 +520,38 @@ class halo_model():
         # Calculate the missing halo-bias from the low-mass part of the integral
         integrand = self._mass_function_nu(nus)*self._linear_bias_nu(nus)
         A = 1.-halo_integration(integrand, nus)
-        if verbose:
-            print('Missing halo-bias-mass from two-halo integrand:', A, '\n')
+        if verbose: print('Missing halo-bias-mass from two-halo integrand:', A, '\n')
 
         # Calculate nu(Mh) and W(Mh, k) by interpolating the input arrays
-        # NOTE: Wh is not the halo profile, but the profile of the other thing (u) evaluated at the halo mass!
+        # NOTE: Wk_halo_mass is not the halo profile, but the profile of the field evaluated at the halo mass!
         nu_M_interp = interp1d(np.log(Ms), nus, kind='cubic')
         nuh = nu_M_interp(np.log(Mh))
-        Whs = []
-        for profile in profiles:
-            Wh = np.empty_like(profile.Wk[0, :])
+        Wk_halo_mass = {}
+        for name, profile in profiles.items():
+            Wk = np.empty_like(profile.Wk[0, :])
             for ik, _ in enumerate(ks):
                 WM_interp = interp1d(np.log(Ms), profile.Wk[:, ik], kind='cubic')
-                Wh[ik] = WM_interp(np.log(Mh))
-            Whs.append(Wh)
+                Wk[ik] = WM_interp(np.log(Mh))
+            Wk_halo_mass[name] = Wk.copy()
 
         # Combine everything and return
-        nk = len(ks)
-        Pk_2h_array = np.zeros((nf, nk))
-        Pk_1h_array = np.zeros((nf, nk))
-        Pk_hm_array = np.zeros((nf, nk))
-        for u, profile in enumerate(profiles):
+        Pk_2h_dict, Pk_1h_dict, Pk_hm_dict = {}, {}, {}
+        Pk_2h, Pk_1h = np.zeros_like(ks), np.zeros_like(ks)
+        for name, profile in profiles.items():
             for ik, k in enumerate(ks):
                 if beta is None:
-                    Pk_2h_array[u, ik] = self._Pk_2h_hu(Pk_lin, k, Ms, nuh, nus, profile.Wk[:, ik], profile.mass, A)
+                    Pk_2h[ik] = self._Pk_2h_hu(Pk_lin, k, Ms, nuh, nus, profile.Wk[:, ik], profile.mass, A)
                 else:
-                    Pk_2h_array[u, ik] = self._Pk_2h_hu(Pk_lin, k, Ms, nuh, nus, profile.Wk[:, ik], profile.mass, A, beta[:, ik])
-                Pk_1h_array[ik] = Whs[u][ik] # Simply the halo profile at M=Mh here
-                Pk_hm_array[ik] = Pk_2h_array[ik]+Pk_1h_array[ik]
+                    Pk_2h[ik] = self._Pk_2h_hu(Pk_lin, k, Ms, nuh, nus, profile.Wk[:, ik], profile.mass, A, beta[:, ik])
+                Pk_1h[ik] = Wk_halo_mass[name][ik] # Simply the halo profile at M=Mh here
+                Pk_2h_dict[name], Pk_1h_dict[name] = Pk_2h.copy(), Pk_1h.copy()
+                Pk_hm_dict[name] = Pk_2h_dict[name]+Pk_1h_dict[name]
         t2 = time() # Final time
 
         if verbose:  
             print('Halomodel calculation time [s]:', t2-t1, '\n')
 
-        return Pk_2h_array, Pk_1h_array, Pk_hm_array
+        return Pk_2h_dict, Pk_1h_dict, Pk_hm_dict
 
 
     def _Pk_2h_hu(self, Pk_lin, k:float, Ms:np.ndarray, nuh:float, 
