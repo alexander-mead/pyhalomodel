@@ -27,10 +27,11 @@ halo_integration = integrate.trapezoid
 
 # W(k) integration scheme integration in r
 # TODO: Add FFTlog
+# TODO: Use integration methods for continuous functions
 #win_integration = integrate.trapezoid
 #win_integration = integrate.simps
 win_integration = integrate.romb # Needs 2^m+1 (integer m) evenly-spaced samples in R
-nr = 1+2**7                      # Number of points in r
+nr_win_integration = 1+2**7                      # Number of points in r
 
 # Mass function
 eps_deriv_mf = 1e-3 # R -> dR for numerical sigma derivative
@@ -391,7 +392,7 @@ class halo_model():
                     if k_trunc is not None: Pk_1h *= 1.-np.exp(-(k/k_trunc)**2) # Suppress one-halo term
 
                     # Finish
-                    Pk_2h_dict[power_name], Pk_1h_dict[power_name] = np.copy(Pk_2h), np.copy(Pk_1h)
+                    Pk_2h_dict[power_name], Pk_1h_dict[power_name] = Pk_2h.copy(), Pk_1h.copy()
                     Pk_hm_dict[power_name] = Pk_2h_dict[power_name]+Pk_1h_dict[power_name]
 
                 else:
@@ -532,7 +533,7 @@ class halo_model():
             for ik, _ in enumerate(k):
                 WM_interp = interp1d(np.log(M), profile.Wk[:, ik], kind='cubic')
                 Wk[ik] = WM_interp(np.log(M_halo))
-            Wk_halo_mass[name] = np.copy(Wk)
+            Wk_halo_mass[name] = Wk.copy()
 
         # Combine everything and return
         Pk_2h_dict, Pk_1h_dict, Pk_hm_dict = {}, {}, {}
@@ -544,7 +545,7 @@ class halo_model():
                 else:
                     Pk_2h[ik] = self._Pk_2h_hu(Pk_lin, k_here, M, nu_halo, nu, profile.Wk[:, ik], profile.mass, A, beta[:, ik])
                 Pk_1h[ik] = Wk_halo_mass[name][ik] # Simply the halo profile at M=Mh here
-                Pk_2h_dict[name], Pk_1h_dict[name] = np.copy(Pk_2h), np.copy(Pk_1h)
+                Pk_2h_dict[name], Pk_1h_dict[name] = Pk_2h.copy(), Pk_1h.copy()
                 Pk_hm_dict[name] = Pk_2h_dict[name]+Pk_1h_dict[name]
         t2 = time() # Final time
 
@@ -695,7 +696,7 @@ class halo_profile():
     '''
     Class for halo profiles
     '''
-    def __init__(self, k:np.ndarray, M:np.ndarray, N:np.ndarray, Uk:np.ndarray, 
+    def __init__(self, k:np.ndarray, M:np.ndarray, N=None, Uk=None, 
         norm=1., var=None, Prho=None, mass=False, discrete=False, *args):
         '''
         Class initialisation for halo profiles
@@ -713,18 +714,15 @@ class halo_profile():
             *args: Arguments for Prho
         '''
         # Set internal variables
-        self.k = np.copy(k)
-        self.M = np.copy(M)
+        self.k = k.copy()
+        self.M = M.copy()
         self.mass = mass
         self.discrete = discrete
         self.norm = norm
         if Prho is None:
-            self.N = np.copy(N)
-            self.Uk = np.copy(Uk)
-            if var is None:
-                self.var = None
-            else:
-                self.var = np.copy(var)
+            self.N = N.copy()
+            self.Uk = Uk.copy()
+            self.var = var.copy() if var is not None else None
             self.Wk = (self.Uk.T*self.N).T/self.norm # Transposes necessary to get multiplication correct
         else:
             # Calculate the halo profile Fourier transform
@@ -733,19 +731,19 @@ class halo_profile():
             self.Wk = np.zeros((len(M), len(k)))
             for iM, _ in enumerate(M):
                 rv = 1. # TODO: This
-                self.N[iM] = self._halo_window(0., rv, Prho, *args)
-                for ik, k_here in enumerate(k): # TODO: Loop necessary?
+                self.N[iM] = self._halo_window(0., rv, Prho, *args) # Normalisation
+                for ik, k_here in enumerate(k): # TODO: Is this loop necessary?
                     self.Wk[iM, ik] = self._halo_window(k_here, rv, Prho, *args)
-                    self.Uk[iM, ik]= self.Wk[iM, ik]/self.N[iM] # Always normalised halo profile
+                    self.Uk[iM, ik]= self.Wk[iM, ik]/self.N[iM] # Normalise
             if N is not None:
-                self.N = np.copy(N)
+                self.N = N.copy()
                 self.Wk = self.Uk*self.N # Renormalise halo profile
             self.Wk /= norm
 
 
     def _halo_window(k:float, rv:float, Prho, *args) -> float:
         '''
-        Compute the halo window function given a 'density' profile Prho(r) = 4*pi*r^2*rho(r)
+        Compute the halo window function via integration given a 'density' profile Prho(r) = 4*pi*r^2*rho(r)
         TODO: Use integration scheme for continuous function 
         TODO: This should almost certainly be done with a dedicated integration routine, FFTlog?\n
         Args:
@@ -756,7 +754,7 @@ class halo_profile():
         from scipy.special import spherical_jn
 
         # Spacing between points for Romberg integration
-        R = np.linspace(0., rv, nr)
+        R = np.linspace(0., rv, nr_win_integration)
         dr = R[1]-R[0]
 
         # Calculate profile mean
