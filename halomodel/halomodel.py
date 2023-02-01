@@ -30,9 +30,9 @@ halo_integration = integrate.trapezoid
 # TODO: Use integration methods for continuous functions
 #win_integration = integrate.trapezoid
 #win_integration = integrate.simps
-win_integration = integrate.romb # Needs 2^m+1 (integer m) evenly-spaced samples in R
-#win_integration = integrate.quad
-nr_win_integration = 1+2**7                      # Number of points in r
+#win_integration = integrate.romb # Needs 2^m+1 (integer m) evenly-spaced samples in R
+win_integration = integrate.quad
+nr_win_integration = 1+2**7 # Number of points in r
 
 # Mass function
 eps_deriv_mf = 1e-3 # R -> dR for numerical sigma derivative
@@ -329,7 +329,8 @@ class halo_model():
         t1 = time() # Initial time
 
         # Checks
-        if type(profiles) != dict: raise TypeError('profiles must be a dictionary')
+        #if type(profiles) != dict: raise TypeError('profiles must be a dictionary')
+        if not isinstance(profiles, dict): raise TypeError('profiles must be a dictionary')
         for profile in profiles.values():
             if (k != profile.k).all(): raise ValueError('k arrays must all be identical to those in profiles')
             if (M != profile.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
@@ -345,7 +346,7 @@ class halo_model():
         # Shot noise calculations
         Pk_SN = {}
         for name, profile in profiles.items():
-            Pk_SN[name] = self._Pk_1h(M, nu, profile.N/profile.norm**2) if profile.discrete else 0.
+            Pk_SN[name] = self._Pk_1h(M, nu, profile.N/profile.norm**2) if profile.discrete_tracer else 0.
 
         # Fill arrays for results
         Pk_2h_dict, Pk_1h_dict, Pk_hm_dict = {}, {}, {}
@@ -364,15 +365,15 @@ class halo_model():
                         if beta is None: 
                             Pk_2h[ik] = self._Pk_2h(Pk_lin, k_here, M, nu, 
                                                     profile_u.Wk[:, ik], profile_v.Wk[:, ik],
-                                                    profile_u.mass, profile_v.mass, A)
+                                                    profile_u.mass_tracer, profile_v.mass_tracer, A)
                         else:
                             Pk_2h[ik] = self._Pk_2h(Pk_lin, k_here, M, nu, 
                                                     profile_u.Wk[:, ik], profile_v.Wk[:, ik],
-                                                    profile_u.mass, profile_v.mass, A, beta[:, :, ik])
+                                                    profile_u.mass_tracer, profile_v.mass_tracer, A, beta[:, :, ik])
 
                         # One-halo term, treat discrete auto case carefully
                         if name_u == name_v: 
-                            if correct_discrete and profile_u.discrete: # Treat discrete tracers
+                            if correct_discrete and profile_u.discrete_tracer: # Treat discrete tracers
                                 Wfac = profile_u.N*(profile_u.N-1.) # <N(N-1)> for discrete tracers
                             else:
                                 Wfac = profile_u.N**2 # <N^2> for others
@@ -384,7 +385,7 @@ class halo_model():
 
                     # Shot noise corrections
                     # If '(not discrete) and shot' or 'discrete and (not shot)' no need to do anything as shot noise already correct
-                    if (name_u == name_v) and profile_u.discrete:
+                    if (name_u == name_v) and profile_u.discrete_tracer:
                         if correct_discrete and include_shotnoise:
                             Pk_1h += Pk_SN[name_u] # Need to add shot noise
                         elif (not correct_discrete) and (not include_shotnoise):
@@ -511,7 +512,8 @@ class halo_model():
         t1 = time() # Initial time
 
         # Checks
-        if type(profiles) != dict: raise TypeError('profiles must be supplied as a dictionary')
+        #if type(profiles) != dict: raise TypeError('profiles must be supplied as a dictionary')
+        if not isinstance(profiles, dict): raise TypeError('profiles must be a dictionary')
         for profile in profiles:
             if (k != profile.k).all(): raise ValueError('k arrays must all be identical to those in profiles')
             if (M != profile.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
@@ -542,9 +544,9 @@ class halo_model():
         for name, profile in profiles.items():
             for ik, k_here in enumerate(k):
                 if beta is None:
-                    Pk_2h[ik] = self._Pk_2h_hu(Pk_lin, k_here, M, nu_halo, nu, profile.Wk[:, ik], profile.mass, A)
+                    Pk_2h[ik] = self._Pk_2h_hu(Pk_lin, k_here, M, nu_halo, nu, profile.Wk[:, ik], profile.mass_tracer, A)
                 else:
-                    Pk_2h[ik] = self._Pk_2h_hu(Pk_lin, k_here, M, nu_halo, nu, profile.Wk[:, ik], profile.mass, A, beta[:, ik])
+                    Pk_2h[ik] = self._Pk_2h_hu(Pk_lin, k_here, M, nu_halo, nu, profile.Wk[:, ik], profile.mass_tracer, A, beta[:, ik])
                 Pk_1h[ik] = Wk_halo_mass[name][ik] # Simply the halo profile at M=Mh here
                 Pk_2h_dict[name], Pk_1h_dict[name] = Pk_2h.copy(), Pk_1h.copy()
                 Pk_hm_dict[name] = Pk_2h_dict[name]+Pk_1h_dict[name]
@@ -698,7 +700,7 @@ class halo_profile():
     Class for halo profiles
     '''
     def __init__(self, k:np.ndarray, M:np.ndarray, N=None, Uk=None, 
-        norm=1., var=None, Prho=None, rv=None, mass=False, discrete=False, *args):
+        norm=1., var=None, Prho=None, rv=None, mass_tracer=False, discrete_tracer=False, *args):
         '''
         Class initialisation for halo profiles
         TODO: Allow for configuration-space profiles to be specified\n
@@ -716,10 +718,8 @@ class halo_profile():
             *args: Arguments for Prho
         '''
         # Set internal variables
-        self.k = k.copy()
-        self.M = M.copy()
-        self.mass = mass
-        self.discrete = discrete
+        self.k, self.M = k.copy(), M.copy()
+        self.mass_tracer, self.discrete_tracer = mass_tracer, discrete_tracer
         self.norm = norm
         self.var = var.copy() if var is not None else None
         if Prho is None:
@@ -742,7 +742,7 @@ class halo_profile():
 
 ### Halo profiles in configuration space ###
 
-def _halo_window(k:float, rv:float, M:float, Prho, *args) -> float:
+def _halo_window(k:float, rv:float, M:float, Prho:callable, *args) -> float:
     '''
     Compute the halo window function via integration given a 'density' profile Prho(r) = 4*pi*r^2*rho(r)
     TODO: Use integration scheme for continuous function 
@@ -770,6 +770,7 @@ def _halo_window(k:float, rv:float, M:float, Prho, *args) -> float:
     else:
         raise ValueError('Halo window function integration method not recognised')
     return Wk
+
 
 def Prho(r:np.ndarray, rv:float, M:float, *args, name=None) -> np.ndarray:
     '''
@@ -890,7 +891,7 @@ def _win_isothermal(k:np.ndarray, rv:np.ndarray) -> np.ndarray:
 def _win_NFW(k:np.ndarray, rv:np.ndarray, c:np.ndarray) -> np.ndarray:
     '''
     Normalised Fourier transform for an NFW profile
-    # TODO: Can I remove loop over mass?\n
+    # TODO: Can I remove loop over mass (outer product)?\n
     Args:
         k: Fourier wavenumber [h/Mpc]
         rv: Halo virial radius [Mpc/h]
@@ -933,7 +934,7 @@ def matter_profile(k:np.ndarray, M:np.ndarray, rv:np.ndarray, c:np.ndarray, Om_m
     '''
     rhom = cosmology.comoving_matter_density(Om_m)
     Uk = halo_window_function(k, rv, c, profile='NFW')
-    return halo_profile(k, M, M, Uk, rhom, mass=True, discrete=False)
+    return halo_profile(k, M, M, Uk, rhom, mass_tracer=True, discrete_tracer=False)
 
 
 # def galaxy_profile(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, rhog:float, 
