@@ -111,16 +111,16 @@ class TestPower(unittest.TestCase):
         matter_profile = halomodel.matter_profile(ks, Ms, rvs, cs, hmod.Om_m)
 
         # Power spectrum calculation
-        _, _, Pk = hmod.power_spectrum(ks, Ms, [matter_profile], lambda k: Pk_lin(z, k), sigmas=sigmaRs)
+        _, _, Pk = hmod.power_spectrum(ks, Ms, {'m': matter_profile}, lambda k: Pk_lin(z, k), sigmas=sigmaRs)
 
         # Save data
         outfile = 'results/HMx_0_26_3_z0.0.dat'
-        data = np.column_stack((ks, Pk[0, 0, :]))
+        data = np.column_stack((ks, Pk['m-m']))
         np.savetxt(outfile, data, header='k [h/Mpc]; P(k) [(Mpc/h)^3]')
 
         # Carry out test
         # TODO: Do assertion only after creating data
-        np.testing.assert_array_almost_equal(Pk[0, 0, :]/Pk_benchmark, 1., decimal=3)
+        np.testing.assert_array_almost_equal(Pk['m-m']/Pk_benchmark, 1., decimal=3)
 
 ### ###
 
