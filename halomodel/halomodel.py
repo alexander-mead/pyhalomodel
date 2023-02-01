@@ -391,7 +391,7 @@ class halo_model():
                     if k_trunc is not None: Pk_1h *= 1.-np.exp(-(k/k_trunc)**2) # Suppress one-halo term
 
                     # Finish
-                    Pk_2h_dict[power_name], Pk_1h_dict[power_name] = Pk_2h.copy(), Pk_1h.copy()
+                    Pk_2h_dict[power_name], Pk_1h_dict[power_name] = np.copy(Pk_2h), np.copy(Pk_1h)
                     Pk_hm_dict[power_name] = Pk_2h_dict[power_name]+Pk_1h_dict[power_name]
 
                 else:
@@ -532,7 +532,7 @@ class halo_model():
             for ik, _ in enumerate(k):
                 WM_interp = interp1d(np.log(M), profile.Wk[:, ik], kind='cubic')
                 Wk[ik] = WM_interp(np.log(M_halo))
-            Wk_halo_mass[name] = Wk.copy()
+            Wk_halo_mass[name] = np.copy(Wk)
 
         # Combine everything and return
         Pk_2h_dict, Pk_1h_dict, Pk_hm_dict = {}, {}, {}
@@ -544,7 +544,7 @@ class halo_model():
                 else:
                     Pk_2h[ik] = self._Pk_2h_hu(Pk_lin, k_here, M, nu_halo, nu, profile.Wk[:, ik], profile.mass, A, beta[:, ik])
                 Pk_1h[ik] = Wk_halo_mass[name][ik] # Simply the halo profile at M=Mh here
-                Pk_2h_dict[name], Pk_1h_dict[name] = Pk_2h.copy(), Pk_1h.copy()
+                Pk_2h_dict[name], Pk_1h_dict[name] = np.copy(Pk_2h), np.copy(Pk_1h)
                 Pk_hm_dict[name] = Pk_2h_dict[name]+Pk_1h_dict[name]
         t2 = time() # Final time
 
