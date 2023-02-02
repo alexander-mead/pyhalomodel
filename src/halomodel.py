@@ -11,6 +11,7 @@ import cosmology
 # TODO: Dedicated test suite against HMcode/HMx for different cosmologies/halo models/redshifts
 # TODO: Add more checks for Dv, dc value compatability with mass functions
 # TODO: Add covariance between profile amplitudes (low priority; hard and annoying)
+# TODO: Change beta(M1, M2, k) -> beta(k, M1, M2)?
 
 # Parameters
 dc_rel_tol = 1e-3    # Relative tolerance for checking 'closeness' of delta_c
@@ -951,41 +952,36 @@ def halo_window_function(k:np.ndarray, rv:np.ndarray, *args, profile=None) -> np
 def _win_isothermal(k:np.ndarray, rv:np.ndarray) -> np.ndarray:
     '''
     Normalised Fourier transform for an isothermal profile\n
-    # TODO: Can I remove loop over mass (outer product)?\n
     Args:
         k: Array of Fourier wavenumber [h/Mpc]
         rv: Array of halo virial radius [Mpc/h]
     '''
     from scipy.special import sici
-    Wk = np.zeros((len(k), len(rv)))
-    for iM, _rv in enumerate(rv):
-        Si, _ = sici(k*_rv)
-        Wk[:, iM] = Si/(k*_rv)
+    kv = np.outer(k, rv)
+    Si, _ = sici(kv)
+    Wk = Si/(kv)
     return Wk
 
 
 def _win_NFW(k:np.ndarray, rv:np.ndarray, c:np.ndarray) -> np.ndarray:
     '''
     Normalised Fourier transform for an NFW profile\n
-    # TODO: Can I remove loop over mass (outer product)?\n
     Args:
         k: Fourier wavenumber [h/Mpc]
         rv: Halo virial radius [Mpc/h]
         c: Halo concentration
     '''
     from scipy.special import sici
-    Wk = np.zeros((len(k), len(rv)))
-    for iM, (_rv, _c) in enumerate(zip(rv, c)):
-        rs = _rv/_c
-        kv = k*_rv
-        ks = k*rs
-        Sisv, Cisv = sici(ks+kv)
-        Sis, Cis = sici(ks)
-        f1 = np.cos(ks)*(Cisv-Cis)
-        f2 = np.sin(ks)*(Sisv-Sis)
-        f3 = np.sin(kv)/(ks+kv)
-        f4 = _NFW_factor(_c)
-        Wk[:, iM] = (f1+f2-f3)/f4
+    rs = rv/c
+    kv = np.outer(k, rv)
+    ks = np.outer(k, rs)
+    Sisv, Cisv = sici(ks+kv)
+    Sis, Cis = sici(ks)
+    f1 = np.cos(ks)*(Cisv-Cis)
+    f2 = np.sin(ks)*(Sisv-Sis)
+    f3 = np.sin(kv)/(ks+kv)
+    f4 = _NFW_factor(c)
+    Wk = (f1+f2-f3)/f4
     return Wk
 
 
