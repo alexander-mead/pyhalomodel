@@ -332,7 +332,7 @@ class halo_model():
 
 
     def power_spectrum(self, k:np.ndarray, M:np.ndarray, profiles:dict, Pk_lin, beta=None, sigmas=None, 
-        sigma=None, include_shotnoise=False, correct_discrete=True, k_trunc=None, verbose=False) -> tuple:
+        sigma=None, subtract_shotnoise=True, correct_discrete=True, k_trunc=None, verbose=False) -> tuple:
         '''
         Computes power spectra given that halo model. Returns the two-halo, one-halo and sum terms.\n
         TODO: Remove Pk_lin dependence?\n
@@ -344,7 +344,7 @@ class halo_model():
             beta(M1, M2, k): Optional array of beta_NL values at points M, M, k
             sigmas(M): Optional pre-computed array of linear sigma(M) values corresponding to M
             sigma(R): Optional function to evaluate the linear sigma(R)
-            include_shotnoise: Should shot noise contribution be included within discrete spectra?
+            subtract_shotnoise: Should shot noise be subtracted from discrete spectra?
             correct_discrete: Properly treat discrete tracers with <N(N-1)> rather than <N^2>?
             k_trunc: None or wavenumber [h/Mpc] at which to truncate the one-halo term at large scales
             verbose: verbosity
@@ -370,7 +370,7 @@ class halo_model():
         # Shot noise calculations
         Pk_SN = {}
         for name, profile in profiles.items():
-            Pk_SN[name] = self._Pk_1h(M, nu, profile.N/profile.norm**2) if profile.discrete_tracer else 0.
+            Pk_SN[name] = self._Pk_1h(M, nu, profile.amp/profile.norm**2) if profile.discrete_tracer else 0.
 
         # Fill arrays for results
         Pk_2h_dict, Pk_1h_dict, Pk_hm_dict = {}, {}, {}
@@ -398,9 +398,9 @@ class halo_model():
                         # One-halo term, treat discrete auto case carefully
                         if name_u == name_v: 
                             if correct_discrete and profile_u.discrete_tracer: # Treat discrete tracers
-                                Wfac = profile_u.N*(profile_u.N-1.) # <N(N-1)> for discrete tracers
+                                Wfac = profile_u.amp*(profile_u.amp-1.) # <N(N-1)> for discrete tracers
                             else:
-                                Wfac = profile_u.N**2 # <N^2> for others
+                                Wfac = profile_u.amp**2 # <N^2> for others
                             if profile_u.var is not None: Wfac += profile_u.var # Add variance
                             Wprod = Wfac*(profile_u.Uk[:, ik]/profile_u.norm)**2 # Multiply by factors of normalisataion and profile
                         else:
@@ -410,9 +410,9 @@ class halo_model():
                     # Shot noise corrections
                     # If '(not discrete) and shot' or 'discrete and (not shot)' no need to do anything as shot noise already correct
                     if (name_u == name_v) and profile_u.discrete_tracer:
-                        if correct_discrete and include_shotnoise:
+                        if correct_discrete and (not subtract_shotnoise):
                             Pk_1h += Pk_SN[name_u] # Need to add shot noise
-                        elif (not correct_discrete) and (not include_shotnoise):
+                        elif (not correct_discrete) and subtract_shotnoise:
                             warnings.warn('Warning: Subtracting shot noise while not treating discreteness properly is dangerous', RuntimeWarning)
                             Pk_1h[:] -= Pk_SN[name_u] # Need to subtract shot noise
                     if k_trunc is not None: Pk_1h *= 1.-np.exp(-(k/k_trunc)**2) # Suppress one-halo term
@@ -724,17 +724,20 @@ class halo_profile():
     '''
     Class for halo profiles\n
     '''
-    def __init__(self, k:np.ndarray, M:np.ndarray, N:np.ndarray, Uk:np.ndarray, 
-        norm=1., var=None, mass_tracer=False, discrete_tracer=False):
+    def __init__(self, k:np.ndarray, M:np.ndarray, Uk:np.ndarray,
+        amp=None, norm=1., var=None, mass_tracer=False, discrete_tracer=False):
         '''
-        Class initialisation for halo profiles\n
+        Class initialisation for Fourier space halo profiles.\n
+        Uk is assumed to be an array Uk(M, k) of the profile Fourier transform.\n
+        If amp=None then Uk is assumed to be dimensionful, otherwise Uk is assumed dimensionless with Uk(M, k->0) = 1\n
+        Matter profiles have amp=M (halo mass), galaxy profiles have amp=N (number of galaxies)
         Args:
             k: Array of wavenumbers [h/Mpc] going from low to high
             M: Array of halo masses [Msun/h] going from low to high
-            N(M): 1D array of halo profile amplitudes at halo masses 'M' (e.g., M for mass; N for galaxies)
-            Uk(M, k): 2D array of normalised halo Fourier transform [dimensionless]; should have U(M, k->0) = 1
+            Uk: 2D array of halo Fourier transform
+            amp: 1D array of halo profile amplitudes at halo masses 'M' (e.g., M for mass; N for galaxies)
             norm: Float for field normalisation (e.g., rhom for mass, ng for galaxies)
-            var(M): Var(N(M)) (auto)variance in the profile amplitude at each halo mass (e.g., N for Poisson galaxies)
+            var: Variance in the profile amplitude at each halo mass (e.g., N for Poisson galaxies)
             mass_tracer: Are contributions expected for M < M[0] (e.g., matter)?
             discrete_tracer: Does the profile correspond to that of a discrete tracer (e.g., galaxies)?
         '''
@@ -742,36 +745,51 @@ class halo_profile():
         self.k, self.M = k.copy(), M.copy()
         self.mass_tracer, self.discrete_tracer = mass_tracer, discrete_tracer
         self.norm = norm
-        self.var = var.copy() if var is not None else None
-        self.N = N.copy()
-        self.Uk = Uk.copy()
-        self.Wk = (self.Uk.T*self.N).T/self.norm # Transposes necessary to get multiplication correct
+        self.var = var.copy() if var is not None else var
+        if amp is not None:
+            self.amp = amp.copy()
+            self.Uk = Uk.copy()
+            self.Wk = (self.Uk.T*self.amp).T/self.norm # Transposes necessary to get multiplication correct
+            #self.Wk = (self.amp*self.Uk)/self.norm # TODO: Multiplication order important?
+        else:
+            self.amp = self.Uk[:, 0]
+            self.Wk = Uk.copy()
+            self.Uk = Uk/amp
 
     @classmethod
-    def configuration_space(cls, k:np.ndarray, M:np.ndarray, N:np.ndarray, Prho, rv:np.ndarray,
-        c:np.ndarray, norm=1., var=None, mass_tracer=False, discrete_tracer=False):
+    def configuration_space(cls, k:np.ndarray, M:np.ndarray, Prho, rv:np.ndarray, c:np.ndarray,
+        amp=None, norm=1., var=None, mass_tracer=False, discrete_tracer=False):
         ''''
-        Alternative class initialisation for configuration-space haloes\n
+        Alternative class initialisation for configuration-space haloes.\n
+        Prho is a halo (density or whatever) profile multiplied by 4pi r^2.\n
+        If amp=None then Prho is assumed to be normalised correctly, otherwise Phro can\n
+        have any normalisation and will be renormalaised by amp to have the correct 'mass'.\n
         Args:
             k: Array of wavenumbers [h/Mpc] going from low to high
             M: Array of halo masses [Msun/h] going from low to high
-            N: Array of halo profile amplitudes at halo masses 'M' (e.g., M for mass; N for galaxies)
-            Prho: Function to evaluate halo profile as a function of radius Prho()
+            Prho: Function to evaluate halo profile as a function of radius Prho(r, M, rv, c)
             rv: Array of halo virial radii [Mpc/h]
             c: Array of halo concentration
+            amp: Array of halo profile amplitudes at halo masses 'M' (e.g., M for mass; N for galaxies)
             norm: Float for field normalisation (e.g., rhom for mass, ng for galaxies)
             var: Var(N(M)) (auto)variance in the profile amplitude at each halo mass (e.g., N for Poisson galaxies)
             mass_tracer: Are contributions expected for M < M[0] (e.g., matter)?
             discrete_tracer: Does the profile correspond to that of a discrete tracer (e.g., galaxies)?
         '''
-        _N = np.zeros_like(M)
+        _amp = np.zeros_like(M)
         Uk, Wk = np.zeros((len(M), len(k))), np.zeros((len(M), len(k)))
-        for iM, (_M, _rv, _c) in enumerate(zip(M, rv, c)): # TODO: *args should be expanded in the loop... FUCK
-            _N[iM] = _halo_window(0., _M, _rv, _c, Prho) # Normalisation
+        for iM, (_M, _rv, _c) in enumerate(zip(M, rv, c)):
+            _amp[iM] = _halo_window(0., _M, _rv, _c, Prho) # Amplitiude
             for ik, _k in enumerate(k): # TODO: Is this loop necessary?
-                Wk[iM, ik] = _halo_window(_k, _M, _rv, _c, Prho)
-                Uk[iM, ik]= Wk[iM, ik]/_N[iM] # Normalise
-        profile = cls(k, M, N, Uk, norm, var=var, mass_tracer=mass_tracer, discrete_tracer=discrete_tracer)
+                W = _halo_window(_k, _M, _rv, _c, Prho)
+                if amp is None:
+                    Wk[iM, ik] = W
+                    Uk[iM, ik]= Wk[iM, ik]/_amp[iM] # Normalise
+                else:
+                    Uk[iM, ik] = W/_amp[iM]
+                    Wk[iM, ik] = Uk[iM, ik]*amp[iM]
+        if amp is not None: _amp = amp
+        profile = cls(k, M, Uk, amp=_amp, norm=norm, var=var, mass_tracer=mass_tracer, discrete_tracer=discrete_tracer)
         return profile
 
     def __str__(self):
@@ -779,24 +797,23 @@ class halo_profile():
         print('Halo profile')
         print('Mass tracer:', self.mass_tracer)
         print('Discrete tracer:', self.discrete_tracer)
-        print('Field normalisation:', self.norm)
+        if self.norm != 1.: print('Field normalisation:', self.norm)
         print('Number of wavenumber bins:', len(self.k))
         print('Number of mass bins:', len(self.M))
         print('Wavenumber range [log10(h/Mpc)]: %1.3f %1.3f'%(np.log10(self.k[0]), np.log10(self.k[-1])))
         print('Halo mass range [log10(Msun/h)]: %1.3f %1.3f'%(np.log10(self.M[0]), np.log10(self.M[-1])))
         print('The following are at the low and high halo mass ends')
-        if self.N[0] > log_limit:
-            print('Profile amplitude mean [log10]:', np.log10(self.N[0]), np.log10(self.N[-1]))
+        if self.amp[0] > log_limit:
+            print('Profile amplitude mean [log10]:', np.log10(self.amp[0]), np.log10(self.amp[-1]))
         else:
-            print('Profile amplitude mean:', self.N[0], self.N[-1])
+            print('Profile amplitude mean:', self.amp[0], self.amp[-1])
         if self.var is not None:
             if self.var[0] > log_limit:
                 print('Profile amplitude variance [log10]:', np.log10(self.var[0]), np.log10(self.var[-1]))
             else:
                 print('Profile amplitude variance:', self.var[0], self.var[-1])
-        else:
-            print('Profile amplitude variance:', self.var)
         print('Dimensionless profiles at low k (should be ~1):', self.Uk[0, 0], self.Uk[-1, 0])
+        print('Dimensionful profiles at low k (should be amplitudes):', self.Wk[0, 0], self.Wk[-1, 0])
         return ''
 
 ### Halo profiles in configuration space ###
@@ -872,7 +889,7 @@ def Prho(r:np.ndarray, M:float, rv:float, c:float, name=None) -> np.ndarray:
 #     '''
 #     return Prho(r, rv, M, *args)/(4.*np.pi*r**2)
 
-def _Prho_isothermal(r, M, rv):
+def _Prho_isothermal(_, M, rv):
     '''
     Isothermal density profile multiplied by 4*pi*r^2\n
     '''
@@ -884,7 +901,6 @@ def _Prho_NFW(r, M, rv, c):
     NFW density profile multiplied by 4*pi*r^2\n
     '''
     rs = rv/c
-    #return M*r/(_NFW_factor(c)*(1.+r/rs)**2*rs**2)
     return (M/c)*(r/rv**2)*(c**3)*_NFW_factor(c)/(1.+r/rs)**2
 
 
@@ -996,7 +1012,7 @@ def matter_profile(k:np.ndarray, M:np.ndarray, rv:np.ndarray, c:np.ndarray, Om_m
     '''
     rhom = cosmology.comoving_matter_density(Om_m)
     Uk = halo_window_function(k, rv, c, profile='NFW')
-    return halo_profile(k, M, M, Uk, rhom, mass_tracer=True, discrete_tracer=False)
+    return halo_profile(k, M, Uk, M, rhom, mass_tracer=True, discrete_tracer=False)
 
 
 # def galaxy_profile(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, rhog:float, 
