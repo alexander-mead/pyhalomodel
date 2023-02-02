@@ -1,10 +1,10 @@
 [tool.poetry]
-name = "halomodel-review"
+name = "halomodel"
 version = "0.1.0"
 description = ""
 authors = ["Alexander Mead <alexander.j.mead@googlemail.com>"]
 readme = "README.md"
-packages = [{include = "halomodel_review"}]
+packages = [{include = "src"}]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
