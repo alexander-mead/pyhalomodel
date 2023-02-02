@@ -8,7 +8,6 @@ import utility as util
 import cosmology
 
 # To-do list
-# TODO: Incorporate configuration-space profiles (high priority)
 # TODO: Dedicated test suite against HMcode/HMx for different cosmologies/halo models/redshifts
 # TODO: Add more checks for Dv, dc value compatability with mass functions
 # TODO: Add covariance between profile amplitudes (low priority; hard and annoying)
@@ -27,13 +26,12 @@ halo_integration = integrate.trapezoid
 
 # W(k) integration scheme integration in r
 # TODO: Add FFTlog
-# TODO: Use integration methods for continuous functions
 #win_integration = integrate.trapezoid
 #win_integration = integrate.simps
 #win_integration = integrate.romb # Needs 2^m+1 (integer m) evenly-spaced samples in R
 win_integration = integrate.quad
 nr_win_integration = 1+2**7 # Number of points in r
-eps_win_integration = 1e-4
+eps_win_integration = 1e-4  # Integration accuracy
 
 # Mass function
 eps_deriv_mf = 1e-3 # R -> dR for numerical sigma derivative
@@ -353,7 +351,6 @@ class halo_model():
         t1 = time() # Initial time
 
         # Checks
-        #if type(profiles) != dict: raise TypeError('profiles must be a dictionary')
         if not isinstance(profiles, dict): raise TypeError('profiles must be a dictionary')
         for profile in profiles.values():
             if (k != profile.k).all(): raise ValueError('k arrays must all be identical to those in profiles')
@@ -472,7 +469,7 @@ class halo_model():
         massu:bool, massv:bool, A:float) -> float:
         '''
         Evaluates the beta_NL double integral\n
-        TODO: Loops maybe horribly inefficient here
+        TODO: Loops maybe horribly inefficient here (outer product?)
         '''
         from numpy import trapz
         integrand = np.zeros((len(nu), len(nu)))
@@ -644,7 +641,6 @@ def interpolate_beta_NL(k:np.ndarray, M:np.ndarray, M_small:np.ndarray, beta_NL_
     '''
     Wrapper for various beta_NL interpolation schemes to go from coarse grid of halo masses\n
     to a finer grid of halo masses.\n
-    TODO: Standardize ordering of k, M arguments
     Args:
         k: Array of wavenumbers [h/Mpc]
         M: Array of desired halo masses [Msun/h]
@@ -734,7 +730,7 @@ class halo_profile():
         Args:
             k: Array of wavenumbers [h/Mpc] going from low to high
             M: Array of halo masses [Msun/h] going from low to high
-            Uk: 2D array of halo Fourier transform
+            Uk: 2D array of halo Fourier transform (order M, k)
             amp: 1D array of halo profile amplitudes at halo masses 'M' (e.g., M for mass; N for galaxies)
             norm: Float for field normalisation (e.g., rhom for mass, ng for galaxies)
             var: Variance in the profile amplitude at each halo mass (e.g., N for Poisson galaxies)
@@ -742,6 +738,7 @@ class halo_profile():
             discrete_tracer: Does the profile correspond to that of a discrete tracer (e.g., galaxies)?
         '''
         # Set internal variables
+        if Uk.shape != (M.shape[0], k.shape[0]): raise ValueError('Array shapes do not match')
         self.k, self.M = k.copy(), M.copy()
         self.mass_tracer, self.discrete_tracer = mass_tracer, discrete_tracer
         self.norm = norm
@@ -750,7 +747,7 @@ class halo_profile():
             self.amp = amp.copy()
             self.Uk = Uk.copy()
             self.Wk = (self.Uk.T*self.amp).T/self.norm # Transposes necessary to get multiplication correct
-            #self.Wk = (self.amp*self.Uk)/self.norm # TODO: Multiplication order important?
+            #self.Wk = (self.amp*self.Uk)/self.norm
         else:
             self.amp = self.Uk[:, 0]
             self.Wk = Uk.copy()
@@ -821,8 +818,7 @@ class halo_profile():
 def _halo_window(k:float, M:float, rv:float, c:float, Prho:callable) -> float:
     '''
     Compute the halo window function via integration given a 'density' profile Prho(r) = 4*pi*r^2*rho(r)\n
-    TODO: Use integration scheme for continuous function\n
-    TODO: This should almost certainly be done with a dedicated integration routine, FFTlog?\n
+    TODO: This should almost certainly be done with a dedicated integration routine (FFTlog?)\n
     Args:
         k: Fourier wavenumber [h/Mpc]
         M: Halo mass [Msun/h]
