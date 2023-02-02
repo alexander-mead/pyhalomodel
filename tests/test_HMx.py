@@ -7,7 +7,7 @@ import unittest
 import camb
 
 # Projet imports
-sys.path.append('./../')
+sys.path.append('./../src')
 import cosmology # TODO: Remove dependancy
 import halomodel
 
