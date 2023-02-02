@@ -385,11 +385,11 @@ class halo_model():
                         # Two-halo term, treat non-linear halo bias carefully
                         if beta is None: 
                             Pk_2h[ik] = self._Pk_2h(Pk_lin, _k, M, nu, 
-                                                    profile_u.Wk[:, ik], profile_v.Wk[:, ik],
+                                                    profile_u.Wk[ik, :], profile_v.Wk[ik, :],
                                                     profile_u.mass_tracer, profile_v.mass_tracer, A)
                         else:
                             Pk_2h[ik] = self._Pk_2h(Pk_lin, _k, M, nu, 
-                                                    profile_u.Wk[:, ik], profile_v.Wk[:, ik],
+                                                    profile_u.Wk[ik, :], profile_v.Wk[ik, :],
                                                     profile_u.mass_tracer, profile_v.mass_tracer, A, beta[:, :, ik])
 
                         # One-halo term, treat discrete auto case carefully
@@ -399,9 +399,9 @@ class halo_model():
                             else:
                                 Wfac = profile_u.amp**2 # <N^2> for others
                             if profile_u.var is not None: Wfac += profile_u.var # Add variance
-                            Wprod = Wfac*(profile_u.Uk[:, ik]/profile_u.norm)**2 # Multiply by factors of normalisataion and profile
+                            Wprod = Wfac*(profile_u.Uk[ik, :]/profile_u.norm)**2 # Multiply by factors of normalisataion and profile
                         else:
-                            Wprod = profile_u.Wk[:, ik]*profile_v.Wk[:, ik]
+                            Wprod = profile_u.Wk[ik, :]*profile_v.Wk[ik, :]
                         Pk_1h[ik] = self._Pk_1h(M, nu, Wprod)
 
                     # Shot noise corrections
@@ -469,12 +469,12 @@ class halo_model():
         massu:bool, massv:bool, A:float) -> float:
         '''
         Evaluates the beta_NL double integral\n
-        TODO: Loops maybe horribly inefficient here (outer product?)
+        TODO: Loops maybe horribly inefficient loops here (outer product?)
         '''
         from numpy import trapz
         integrand = np.zeros((len(nu), len(nu)))
-        for iM1, nu1 in enumerate(nu): # TODO: Loop necessary?
-            for iM2, nu2 in enumerate(nu): # TODO: Loop necessary?
+        for iM1, nu1 in enumerate(nu):
+            for iM2, nu2 in enumerate(nu):
                 if iM2 >= iM1:
                     M1, M2 = M[iM1], M[iM2]
                     W1, W2 = Wu[iM1], Wv[iM2]
@@ -553,9 +553,9 @@ class halo_model():
         nu_halo = nu_M_interp(np.log(M_halo))
         Wk_halo_mass = {}
         for name, profile in profiles.items():
-            Wk = np.empty_like(profile.Wk[0, :])
+            Wk = np.empty_like(profile.Wk[:, 0])
             for ik, _ in enumerate(k):
-                WM_interp = interp1d(np.log(M), profile.Wk[:, ik], kind='cubic')
+                WM_interp = interp1d(np.log(M), profile.Wk[ik, :], kind='cubic')
                 Wk[ik] = WM_interp(np.log(M_halo))
             Wk_halo_mass[name] = Wk.copy()
 
@@ -565,9 +565,9 @@ class halo_model():
         for name, profile in profiles.items():
             for ik, _k in enumerate(k):
                 if beta is None:
-                    Pk_2h[ik] = self._Pk_2h_hu(Pk_lin, _k, M, nu_halo, nu, profile.Wk[:, ik], profile.mass_tracer, A)
+                    Pk_2h[ik] = self._Pk_2h_hu(Pk_lin, _k, M, nu_halo, nu, profile.Wk[ik, :], profile.mass_tracer, A)
                 else:
-                    Pk_2h[ik] = self._Pk_2h_hu(Pk_lin, _k, M, nu_halo, nu, profile.Wk[:, ik], profile.mass_tracer, A, beta[:, ik])
+                    Pk_2h[ik] = self._Pk_2h_hu(Pk_lin, _k, M, nu_halo, nu, profile.Wk[ik, :], profile.mass_tracer, A, beta[:, ik])
                 Pk_1h[ik] = Wk_halo_mass[name][ik] # Simply the halo profile at M=Mh here
                 Pk_2h_dict[name], Pk_1h_dict[name] = Pk_2h.copy(), Pk_1h.copy()
                 Pk_hm_dict[name] = Pk_2h_dict[name]+Pk_1h_dict[name]
@@ -724,13 +724,13 @@ class halo_profile():
         amp=None, norm=1., var=None, mass_tracer=False, discrete_tracer=False):
         '''
         Class initialisation for Fourier space halo profiles.\n
-        Uk is assumed to be an array Uk(M, k) of the profile Fourier transform.\n
-        If amp=None then Uk is assumed to be dimensionful, otherwise Uk is assumed dimensionless with Uk(M, k->0) = 1\n
-        Matter profiles have amp=M (halo mass), galaxy profiles have amp=N (number of galaxies)
+        Uk is assumed to be an array Uk(k, M) of the profile Fourier transform.\n
+        If amp=None then Uk is assumed to be dimensionful, otherwise Uk is assumed dimensionless with Uk(k->0, M) = 1\n
+        Matter profiles have amp=M (halo mass), galaxy profiles have amp=N (number of galaxies)\n
         Args:
             k: Array of wavenumbers [h/Mpc] going from low to high
             M: Array of halo masses [Msun/h] going from low to high
-            Uk: 2D array of halo Fourier transform (order M, k)
+            Uk: 2D array of halo Fourier transform (order k, M)
             amp: 1D array of halo profile amplitudes at halo masses 'M' (e.g., M for mass; N for galaxies)
             norm: Float for field normalisation (e.g., rhom for mass, ng for galaxies)
             var: Variance in the profile amplitude at each halo mass (e.g., N for Poisson galaxies)
@@ -738,7 +738,7 @@ class halo_profile():
             discrete_tracer: Does the profile correspond to that of a discrete tracer (e.g., galaxies)?
         '''
         # Set internal variables
-        if Uk.shape != (M.shape[0], k.shape[0]): raise ValueError('Array shapes do not match')
+        if Uk.shape != (k.shape[0], M.shape[0]): raise ValueError('Array shapes do not match')
         self.k, self.M = k.copy(), M.copy()
         self.mass_tracer, self.discrete_tracer = mass_tracer, discrete_tracer
         self.norm = norm
@@ -746,10 +746,10 @@ class halo_profile():
         if amp is not None:
             self.amp = amp.copy()
             self.Uk = Uk.copy()
-            self.Wk = (self.Uk.T*self.amp).T/self.norm # Transposes necessary to get multiplication correct
-            #self.Wk = (self.amp*self.Uk)/self.norm
+            #self.Wk = (self.Uk.T*self.amp).T/self.norm # Transposes necessary to get multiplication correct
+            self.Wk = (self.amp*self.Uk)/self.norm
         else:
-            self.amp = self.Uk[:, 0]
+            self.amp = self.Uk[0, :]
             self.Wk = Uk.copy()
             self.Uk = Uk/amp
 
@@ -774,17 +774,18 @@ class halo_profile():
             discrete_tracer: Does the profile correspond to that of a discrete tracer (e.g., galaxies)?
         '''
         _amp = np.zeros_like(M)
-        Uk, Wk = np.zeros((len(M), len(k))), np.zeros((len(M), len(k)))
+        Uk, Wk = np.zeros((len(k), len(M))), np.zeros((len(k), len(M)))
         for iM, (_M, _rv, _c) in enumerate(zip(M, rv, c)):
             _amp[iM] = _halo_window(0., _M, _rv, _c, Prho) # Amplitiude
-            for ik, _k in enumerate(k): # TODO: Is this loop necessary?
+        for ik, _k in enumerate(k):
+            for iM, (_M, _rv, _c) in enumerate(zip(M, rv, c)):
                 W = _halo_window(_k, _M, _rv, _c, Prho)
                 if amp is None:
-                    Wk[iM, ik] = W
-                    Uk[iM, ik]= Wk[iM, ik]/_amp[iM] # Normalise
+                    Wk[ik, iM] = W
+                    Uk[ik, iM]= Wk[ik, iM]/_amp[iM] # Normalise
                 else:
-                    Uk[iM, ik] = W/_amp[iM]
-                    Wk[iM, ik] = Uk[iM, ik]*amp[iM]
+                    Uk[ik, iM] = W/_amp[iM]
+                    Wk[ik, iM] = Uk[ik, iM]*amp[iM]
         if amp is not None: _amp = amp
         profile = cls(k, M, Uk, amp=_amp, norm=norm, var=var, mass_tracer=mass_tracer, discrete_tracer=discrete_tracer)
         return profile
@@ -809,8 +810,8 @@ class halo_profile():
                 print('Profile amplitude variance [log10]:', np.log10(self.var[0]), np.log10(self.var[-1]))
             else:
                 print('Profile amplitude variance:', self.var[0], self.var[-1])
-        print('Dimensionless profiles at low k (should be ~1):', self.Uk[0, 0], self.Uk[-1, 0])
-        print('Dimensionful profiles at low k (should be amplitudes):', self.Wk[0, 0], self.Wk[-1, 0])
+        print('Dimensionless profiles at low k (should be ~1):', self.Uk[0, 0], self.Uk[0, -1])
+        print('Dimensionful profiles at low k (should be amplitudes):', self.Wk[0, 0], self.Wk[0, -1])
         return ''
 
 ### Halo profiles in configuration space ###
@@ -819,6 +820,7 @@ def _halo_window(k:float, M:float, rv:float, c:float, Prho:callable) -> float:
     '''
     Compute the halo window function via integration given a 'density' profile Prho(r) = 4*pi*r^2*rho(r)\n
     TODO: This should almost certainly be done with a dedicated integration routine (FFTlog?)\n
+    TODO: Can this be made to accept arrays of M, rv, c as arguments?
     Args:
         k: Fourier wavenumber [h/Mpc]
         M: Halo mass [Msun/h]
@@ -936,7 +938,7 @@ def halo_window_function(k:np.ndarray, rv:np.ndarray, *args, profile=None) -> np
         profile: String delta, isothermal, NFW
     '''
     if profile == 'delta':
-        Wk = np.ones((len(rv), len(k)))
+        Wk = np.ones((len(k), len(rv)))
     elif profile == 'isothermal':
         Wk = _win_isothermal(k, rv)
     elif profile == 'NFW':
@@ -955,10 +957,10 @@ def _win_isothermal(k:np.ndarray, rv:np.ndarray) -> np.ndarray:
         rv: Array of halo virial radius [Mpc/h]
     '''
     from scipy.special import sici
-    Wk = np.zeros((len(rv), len(k)))
+    Wk = np.zeros((len(k), len(rv)))
     for iM, _rv in enumerate(rv):
         Si, _ = sici(k*_rv)
-        Wk[iM, :] = Si/(k*_rv)
+        Wk[:, iM] = Si/(k*_rv)
     return Wk
 
 
@@ -972,7 +974,7 @@ def _win_NFW(k:np.ndarray, rv:np.ndarray, c:np.ndarray) -> np.ndarray:
         c: Halo concentration
     '''
     from scipy.special import sici
-    Wk = np.zeros((len(rv), len(k)))
+    Wk = np.zeros((len(k), len(rv)))
     for iM, (_rv, _c) in enumerate(zip(rv, c)):
         rs = _rv/_c
         kv = k*_rv
@@ -983,7 +985,7 @@ def _win_NFW(k:np.ndarray, rv:np.ndarray, c:np.ndarray) -> np.ndarray:
         f2 = np.sin(ks)*(Sisv-Sis)
         f3 = np.sin(kv)/(ks+kv)
         f4 = _NFW_factor(_c)
-        Wk[iM, :] = (f1+f2-f3)/f4
+        Wk[:, iM] = (f1+f2-f3)/f4
     return Wk
 
 
