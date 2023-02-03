@@ -26,13 +26,15 @@ halo_integration = integrate.trapezoid
 #halo_integration = integrate.simps
 
 # W(k) integration scheme integration in r
-# TODO: Add FFTlog
+# TODO: Add FFTlog?
 #win_integration = integrate.trapezoid
 #win_integration = integrate.simps
 #win_integration = integrate.romb # Needs 2^m+1 (integer m) evenly-spaced samples in R
 win_integration = integrate.quad
-nr_win_integration = 1+2**7 # Number of points in r
-eps_win_integration = 1e-4  # Integration accuracy
+#win_integration = integrate.quadrature
+#win_integration = integrate.romberg
+nr_win_integration = 1+2**8 # Number of points in r (sample methods)
+eps_win_integration = 1e-3 # Integration accuracy (continuous methods)
 
 # Mass function
 eps_deriv_mf = 1e-3 # R -> dR for numerical sigma derivative
@@ -361,7 +363,7 @@ class halo_model():
         nu = self._peak_height(M, sigmas, sigma, Pk_lin)
 
         # Calculate the missing halo-bias from the low-mass part of the integral
-        A = 1.-integrate.quad(lambda nu: self._mass_function_nu(nu)*self._linear_bias_nu(nu), nu[0], np.inf)[0]
+        A, _ = 1.-integrate.quad(lambda nu: self._mass_function_nu(nu)*self._linear_bias_nu(nu), nu[0], np.inf)
         if verbose: print('Missing halo-bias-mass from the low-mass end of the two-halo integrand:', A)
         if A < 0.:  warnings.warn('Warning: Mass function/bias correction is negative!', RuntimeWarning)
 
@@ -834,15 +836,19 @@ def _halo_window(k:float, M:float, rv:float, c:float, Prho:callable) -> float:
     if win_integration in [integrate.trapezoid, integrate.simps, integrate.romb]:
         R = np.linspace(0., rv, nr_win_integration)
         integrand = spherical_jn(0, k*R)*Prho(R, M, rv, c)
-        if win_integration in [integrate.romb]: dr = R[1]-R[0]
+        if win_integration in [integrate.romb]: dR = R[1]-R[0]
 
     # Integration
-    if win_integration == integrate.romb:
-        Wk = win_integration(integrand, dr)
-    elif win_integration in [integrate.trapezoid, integrate.simps]:
+    if win_integration in [integrate.trapezoid, integrate.simps]:
         Wk = win_integration(integrand, R)
+    elif win_integration in [integrate.romb]:
+        Wk = win_integration(integrand, dR)
     elif win_integration in [integrate.quad]:
         Wk, _ = win_integration(lambda r: spherical_jn(0, k*r)*Prho(r, M, rv, c), 0., rv, epsrel=eps_win_integration)
+    elif win_integration in [integrate.quadrature]:
+        Wk, _ = win_integration(lambda r: spherical_jn(0, k*r)*Prho(r, M, rv, c), 0., rv, rtol=eps_win_integration)
+    elif win_integration in [integrate.romberg]:
+        Wk = win_integration(lambda r: spherical_jn(0, k*r)*Prho(r, M, rv, c), 0., rv, rtol=eps_win_integration)
     else:
         raise ValueError('Halo window function integration method not recognised')
     return Wk
