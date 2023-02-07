@@ -105,9 +105,9 @@ note that because we specify the amplitude here we do not need to worry about co
 ```
 Prho_gal = lambda r, M, rv, c: 1. # Isothermal profile
 
-galaxy_profile = halomodel.halo_profile.configuration_space(k, M, Prho_gal, rv, c, amp=N_galaxy, norm=rho_galaxy, var=var_galaxy, discrete_tracer=True)
+galaxy_profile = halomodel.halo_profile.configuration_space(k, M, Prho_gal, rv, c, amp=N_galaxy, norm=rho_galaxy, discrete_tracer=True)
 ```
-in the discrete tracer case it is important to split up `norm` and `amp` so that `amp` is something that can be interpreted as the mean of a discrete probability distribution.
+in the discrete tracer case it is important to split up `norm` and `amp` so that `amp` is something that can be interpreted as the mean of a discrete probability distribution. In this example we have also decided to ignore the contribution of the variance in the number of galaxies at fixed halo mass to the eventual power spectrum calculation.
 
 
 ## Notebooks
