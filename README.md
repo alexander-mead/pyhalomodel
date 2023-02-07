@@ -19,13 +19,13 @@ You can also install without `poetry`, either system wide or using another envir
 Start a script with
 ```
 import numpy
-import halomodel
+import halomodel as halo
 ```
 ensuring that `halomodel.py` is visible to your `path`. To make non-linear power spectrum predictions using the halo model requires a linear power spectrum. In our notebooks we always take this from `CAMB`, but it could come from any source. Calculations also require the variance in the linear density field when smoothed on comoving scale $R$: $\sigma^2(R)$. Once again, this function could come from any source, but we take it from `CAMB`.
 
-A typical call to create an instance of a `halo_model` object looks like
+A typical call to create an instance of a `model` object looks like
 ```
-hmod = halomodel.halo_model(z, Omega_m, name='Tinker et al. (2010)', Dv=330., dc=1.686, verbose=True)
+hmod = halo.model(z, Omega_m, name='Tinker et al. (2010)', Dv=330., dc=1.686, verbose=True)
 ```
 where:
 - `z` is the redshift
@@ -50,15 +50,15 @@ Pk_2h, Pk_1h, Pk_hm = hmod.power_spectrum(k, M, profiles, Pk_lin, sigmas)
 where: 
 - `k` is an array of comoving Fourier wavenumbers (units: $h\mathrm{Mpc}^{-1}$)
 - `M` is an array of halo masses (units: $h^{-1}M_\odot$)
-- `profiles` is a dictionary of `halo_profile`s (see below; could contain a single entry)
+- `profiles` is a dictionary of `profile`s (see below; could contain a single entry)
 - `Pk_lin` is a function that evaluates the linear power spectrum at a given `k`
 - `sigmas` is an array of root-variance linear density values at Lagrangian scales corresponding to `M`
 
-The function returns a tuple of `Pk_2h` (two-halo), `Pk_1h` (one-halo), and `Pk_hm` (full halo model; usually the sum) power at the chosen `k` values. The `power_spectrum` method computes all possible auto- and cross-spectra given the dictionary of halo profiles. For example, if three profiles were in the dictionary this would compute the three autospectra and three unique cross spectra. The returned `Pk` are then dictionaries containing all possible spectra. For example, if `halo_profiles={'a':profile_a, 'b':profile_b, 'c':profile_c}` then the `Pk` dictionaries will contain the keys: `a-a`; `a-b`; `a-c`; `b-a`; `b-b`; `b-c`; `c-a`; `c-b`; `c-c`, where the values in `a-b` and `b-a` (for example) will be identical. Of course, each value in the `Pk` dictionary is an array of the power at all `k` values.
+The function returns a tuple of `Pk_2h` (two-halo), `Pk_1h` (one-halo), and `Pk_hm` (full halo model; usually the sum) power at the chosen `k` values. The `power_spectrum` method computes all possible auto- and cross-spectra given the dictionary of halo profiles. For example, if three profiles were in the dictionary this would compute the three autospectra and three unique cross spectra. The returned `Pk` are then dictionaries containing all possible spectra. For example, if `profiles={'a':profile_a, 'b':profile_b, 'c':profile_c}` then the `Pk` dictionaries will contain the keys: `a-a`; `a-b`; `a-c`; `b-a`; `b-b`; `b-c`; `c-a`; `c-b`; `c-c`, where the values in `a-b` and `b-a` (for example) will be identical. Of course, each value in the `Pk` dictionary is an array of the power at all `k` values.
 
-Halo profiles are instances of the `halo_profile` class. These are initialised in Fourier space like:
+Halo profiles are instances of the `profile` class. These are initialised in Fourier space like:
 ```
-halomodel.halo_profile(k, M, Uk, amp=None, norm=1., var=None, mass_tracer=False, discrete_tracer=False)
+halo.profile.Fourier(k, M, Uk, amp=None, norm=1., var=None, mass_tracer=False, discrete_tracer=False)
 ```
 where
 - `k` is an array of comoving Fourier wavenumbers (units: $h\mathrm{Mpc}^{-1}$)
@@ -74,11 +74,11 @@ The arrays `k` and `M` must correspond to those in the `hmod.power_spectrum` cal
 
 Some examples best illustrate how to create your own halo profiles:
 ```
-matter_profile = halomodel.halo_profile(k, M, Uk_matter, amp=M, norm=rho_matter, mass_tracer=True)
+matter_profile = halomodel.profile.Fourier(k, M, Uk_matter, amp=M, norm=rho_matter, mass_tracer=True)
 ```
-would create a matter profile. Here `Uk_matter` would be the normalised Fourier transform of a matter profile (e.g., an NFW profile), the amplitude of each profile is exactly `M` (because the haloes are the mass), but the field normalisation is `rho_matter` (which can be accessed via `hmod.rhom`) because the field we are interested in is matter overdensity. We use `mass_tracer=True` to tell the code that the profile corresponds to mass. Note that in this case we would get exactly the same `halo_profile` if we fixed the profile amplitude as `amp=M/rho_matter` and the field normalisation as `norm=1.`.
+would create a matter profile. Here `Uk_matter` would be the normalised Fourier transform of a matter profile (e.g., an NFW profile), the amplitude of each profile is exactly `M` (because the haloes are the mass), but the field normalisation is `rho_matter` (which can be accessed via `hmod.rhom`) because the field we are interested in is matter overdensity. We use `mass_tracer=True` to tell the code that the profile corresponds to mass. Note that in this case we would get exactly the same `profile` if we fixed the profile amplitude as `amp=M/rho_matter` and the field normalisation as `norm=1.`.
 ```
-galaxy_profile = halomodel.halo_profile(k, M, Uk_galaxy, amp=N_galaxy, norm=rho_galaxy, var=var_galaxy, discrete_tracer=True)
+galaxy_profile = halo.profile.Fourier(k, M, Uk_galaxy, amp=N_galaxy, norm=rho_galaxy, var=var_galaxy, discrete_tracer=True)
 ```
 would create a galaxy profile. Here `Uk_galaxy` would be the normalised Fourier transform of a galaxy profile (e.g., an isothermal profile). The amplitude of the profile is the mean galaxy-occupation number at each `M`: `amp=N_galaxy`. The field is normalised by the mean galaxy density `rho_galaxy`. The variance in galaxy number at each `M` is `var_galaxy`. We tell the code that `discrete_tracer=True` because in the discrete-tracer case it is essential to split the profile amplitude from the field normalisation if the discreteness of the tracer is to be accounted for properly.
 
@@ -86,7 +86,7 @@ Note that *covariance* in the mean profile amplitude between two different trace
 
 Halo profiles can also be specified in configuration (real) space, via a function of radius from the halo centre. This is slower than specifying the Fourier profiles since the conversion to Fourier space will need to be performed internally.
 ```
-halomodel.halo_profile.configuration_space(k, M, Prho, rv, c, amp=None, norm=1., var=None, mass_tracer=False, discrete_tracer=False):
+halo.profile.configuration(k, M, Prho, rv, c, amp=None, norm=1., var=None, mass_tracer=False, discrete_tracer=False):
 ```
 the arguments are similar to those for Fourier-space profiles, except that
 - `Prho` is a the halo profile multiplied by $4\pi r^2$ with call signature `Prho(r, M, rv, c)`
@@ -99,13 +99,13 @@ def Prho_matter(r, M, rv, c):
    rs = rv/c
    return r/(1.+r/rs)**2.
 
-matter_profile = halomodel.halo_profile.configuration_space(k, M, Prho_matter, rv, c, amp=M/rho_matter, mass_tracer=True)
+matter_profile = halo.profile.configuration(k, M, Prho_matter, rv, c, amp=M/rho_matter, mass_tracer=True)
 ```
 note that because we specify the amplitude here we do not need to worry about constant factors in the `Prho` definition, since the profile normalisation will be calculated self consistently. Note also that because we set `amp=M/rho_matter` (matter *overdensity*) we can omit the `norm` argument, which defaults to `1.`.
 ```
 Prho_gal = lambda r, M, rv, c: 1. # Isothermal profile
 
-galaxy_profile = halomodel.halo_profile.configuration_space(k, M, Prho_gal, rv, c, amp=N_galaxy, norm=rho_galaxy, discrete_tracer=True)
+galaxy_profile = halo.profile.configuration(k, M, Prho_gal, rv, c, amp=N_galaxy, norm=rho_galaxy, discrete_tracer=True)
 ```
 in the discrete tracer case it is important to split up `norm` and `amp` so that `amp` is something that can be interpreted as the mean of a discrete probability distribution. In this example we have also decided to ignore the contribution of the variance in the number of galaxies at fixed halo mass to the eventual power spectrum calculation.
 
