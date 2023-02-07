@@ -723,7 +723,42 @@ class profile():
     '''
     Class for halo profiles\n
     '''
-    def __init__(self, k:np.ndarray, M:np.ndarray, Uk:np.ndarray,
+    def __init__(self, k:np.ndarray, M:np.ndarray, Uk:np.ndarray, Wk:np.ndarray, 
+        amp=None, norm=1., var=None, mass_tracer=False, discrete_tracer=False):
+        # TODO: Is .copy() necessaary here?
+        self.k, self.M = k.copy(), M.copy()
+        self.Uk, self.Wk = Uk.copy(), Wk.copy()
+        self.amp = amp.copy() if amp is not None else None
+        self.norm = norm
+        self.var = var.copy() if var is not None else None
+        self.mass_tracer, self.discrete_tracer = mass_tracer, discrete_tracer
+
+    def __str__(self):
+        log_limit = 1e5
+        print('Halo profile')
+        print('Mass tracer:', self.mass_tracer)
+        print('Discrete tracer:', self.discrete_tracer)
+        if self.norm != 1.: print('Field normalisation:', self.norm)
+        print('Number of wavenumber bins:', len(self.k))
+        print('Number of mass bins:', len(self.M))
+        print('Wavenumber range [log10(h/Mpc)]: %1.3f %1.3f'%(np.log10(self.k[0]), np.log10(self.k[-1])))
+        print('Halo mass range [log10(Msun/h)]: %1.3f %1.3f'%(np.log10(self.M[0]), np.log10(self.M[-1])))
+        print('The following are at the low and high halo mass ends')
+        if self.amp[0] > log_limit:
+            print('Profile amplitude mean [log10]:', np.log10(self.amp[0]), np.log10(self.amp[-1]))
+        else:
+            print('Profile amplitude mean:', self.amp[0], self.amp[-1])
+        if self.var is not None:
+            if self.var[0] > log_limit:
+                print('Profile amplitude variance [log10]:', np.log10(self.var[0]), np.log10(self.var[-1]))
+            else:
+                print('Profile amplitude variance:', self.var[0], self.var[-1])
+        print('Dimensionless profiles at low k (should be ~1):', self.Uk[0, 0], self.Uk[0, -1])
+        print('Dimensionful profiles at low k (should be amplitudes):', self.Wk[0, 0], self.Wk[0, -1])
+        return ''
+
+    @classmethod
+    def Fourier(cls, k:np.ndarray, M:np.ndarray, Uk:np.ndarray,
         amp=None, norm=1., var=None, mass_tracer=False, discrete_tracer=False):
         '''
         Class initialisation for Fourier space halo profiles.\n
@@ -742,19 +777,22 @@ class profile():
         '''
         # Set internal variables
         if Uk.shape != (k.shape[0], M.shape[0]): raise ValueError('Array shapes do not match')
-        self.k, self.M = k.copy(), M.copy()
-        self.mass_tracer, self.discrete_tracer = mass_tracer, discrete_tracer
-        self.norm = norm
-        self.var = var.copy() if var is not None else var
-        if amp is not None:
-            self.amp = amp.copy()
-            self.Uk = Uk.copy()
-            #self.Wk = (self.Uk.T*self.amp).T/self.norm # Transposes necessary to get multiplication correct
-            self.Wk = (self.amp*self.Uk)/self.norm
+        #cls.k, cls.M = k.copy(), M.copy()
+        #cls.mass_tracer, cls.discrete_tracer = mass_tracer, discrete_tracer
+        #cls.norm = norm
+        #cls.var = var.copy() if var is not None else var
+        if amp is None:
+            amp = Uk[0, :] # TODO: Integrate to get this? This relies on k[0] being small!
+            Wk = Uk
+            _Uk = Uk/amp
         else:
-            self.amp = self.Uk[0, :]
-            self.Wk = Uk.copy()
-            self.Uk = Uk/amp
+            #cls.amp = amp.copy()
+            #cls.Uk = Uk.copy()
+            #self.Wk = (self.Uk.T*self.amp).T/self.norm # Transposes necessary to get multiplication correct
+            _Uk = Uk
+            Wk = (amp*Uk)/norm
+            
+        return cls(k, M, _Uk, Wk, amp=amp, norm=norm, var=var, mass_tracer=mass_tracer, discrete_tracer=discrete_tracer)
 
     @classmethod
     def configuration(cls, k:np.ndarray, M:np.ndarray, Prho, rv:np.ndarray, c:np.ndarray,
@@ -790,32 +828,8 @@ class profile():
                     Uk[ik, iM] = W/_amp[iM]
                     Wk[ik, iM] = Uk[ik, iM]*amp[iM]
         if amp is not None: _amp = amp
-        profile = cls(k, M, Uk, amp=_amp, norm=norm, var=var, mass_tracer=mass_tracer, discrete_tracer=discrete_tracer)
+        profile = cls.Fourier(k, M, Uk, amp=_amp, norm=norm, var=var, mass_tracer=mass_tracer, discrete_tracer=discrete_tracer)
         return profile
-
-    def __str__(self):
-        log_limit = 1e5
-        print('Halo profile')
-        print('Mass tracer:', self.mass_tracer)
-        print('Discrete tracer:', self.discrete_tracer)
-        if self.norm != 1.: print('Field normalisation:', self.norm)
-        print('Number of wavenumber bins:', len(self.k))
-        print('Number of mass bins:', len(self.M))
-        print('Wavenumber range [log10(h/Mpc)]: %1.3f %1.3f'%(np.log10(self.k[0]), np.log10(self.k[-1])))
-        print('Halo mass range [log10(Msun/h)]: %1.3f %1.3f'%(np.log10(self.M[0]), np.log10(self.M[-1])))
-        print('The following are at the low and high halo mass ends')
-        if self.amp[0] > log_limit:
-            print('Profile amplitude mean [log10]:', np.log10(self.amp[0]), np.log10(self.amp[-1]))
-        else:
-            print('Profile amplitude mean:', self.amp[0], self.amp[-1])
-        if self.var is not None:
-            if self.var[0] > log_limit:
-                print('Profile amplitude variance [log10]:', np.log10(self.var[0]), np.log10(self.var[-1]))
-            else:
-                print('Profile amplitude variance:', self.var[0], self.var[-1])
-        print('Dimensionless profiles at low k (should be ~1):', self.Uk[0, 0], self.Uk[0, -1])
-        print('Dimensionful profiles at low k (should be amplitudes):', self.Wk[0, 0], self.Wk[0, -1])
-        return ''
 
 ### Halo profiles in configuration space ###
 
@@ -1012,7 +1026,7 @@ def matter_profile(k:np.ndarray, M:np.ndarray, rv:np.ndarray, c:np.ndarray, Om_m
     '''
     rhom = cosmology.comoving_matter_density(Om_m)
     Uk = window_function(k, rv, c, profile='NFW')
-    return profile(k, M, Uk, M, rhom, mass_tracer=True, discrete_tracer=False)
+    return profile.Fourier(k, M, Uk, M, rhom, mass_tracer=True, discrete_tracer=False)
 
 
 # def galaxy_profile(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, rhog:float, 
