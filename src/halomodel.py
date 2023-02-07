@@ -45,7 +45,7 @@ do_I12_I21 = True # Compute and add low M1 or low M2 portion of the integral
 
 ### Class definition ###
 
-class halo_model():
+class model():
     '''
     Class for halo model
     '''
@@ -363,7 +363,7 @@ class halo_model():
         nu = self._peak_height(M, sigmas, sigma, Pk_lin)
 
         # Calculate the missing halo-bias from the low-mass part of the integral
-        A, _ = 1.-integrate.quad(lambda nu: self._mass_function_nu(nu)*self._linear_bias_nu(nu), nu[0], np.inf)
+        A = 1.-integrate.quad(lambda nu: self._mass_function_nu(nu)*self._linear_bias_nu(nu), nu[0], np.inf)[0]
         if verbose: print('Missing halo-bias-mass from the low-mass end of the two-halo integrand:', A)
         if A < 0.:  warnings.warn('Warning: Mass function/bias correction is negative!', RuntimeWarning)
 
@@ -719,7 +719,7 @@ def _RegularGridInterp_beta_NL_log(k_in:np.ndarray, M_in:np.ndarray, beta_NL_in:
 
 ### Halo profiles ###
 
-class halo_profile():
+class profile():
     '''
     Class for halo profiles\n
     '''
@@ -757,7 +757,7 @@ class halo_profile():
             self.Uk = Uk/amp
 
     @classmethod
-    def configuration_space(cls, k:np.ndarray, M:np.ndarray, Prho, rv:np.ndarray, c:np.ndarray,
+    def configuration(cls, k:np.ndarray, M:np.ndarray, Prho, rv:np.ndarray, c:np.ndarray,
         amp=None, norm=1., var=None, mass_tracer=False, discrete_tracer=False):
         ''''
         Alternative class initialisation for configuration-space haloes.\n
@@ -935,7 +935,7 @@ def _Prho_NFW(r, M, rv, c):
 
 ### Halo profiles in Fourier space ###
 
-def halo_window_function(k:np.ndarray, rv:np.ndarray, *args, profile=None) -> np.ndarray:
+def window_function(k:np.ndarray, rv:np.ndarray, *args, profile=None) -> np.ndarray:
     '''
     Normalised Fourier tranform for a delta-function profile (unity)\n
     Args:
@@ -1000,7 +1000,7 @@ def _NFW_factor(c:np.ndarray) -> np.ndarray:
     return np.log(1.+c)-c/(1.+c)
 
 
-def matter_profile(k:np.ndarray, M:np.ndarray, rv:np.ndarray, c:np.ndarray, Om_m:float) -> halo_profile:
+def matter_profile(k:np.ndarray, M:np.ndarray, rv:np.ndarray, c:np.ndarray, Om_m:float) -> profile:
     '''
     Pre-configured matter NFW profile\n
     Args:
@@ -1011,8 +1011,8 @@ def matter_profile(k:np.ndarray, M:np.ndarray, rv:np.ndarray, c:np.ndarray, Om_m
         Om_m: Cosmological matter density
     '''
     rhom = cosmology.comoving_matter_density(Om_m)
-    Uk = halo_window_function(k, rv, c, profile='NFW')
-    return halo_profile(k, M, Uk, M, rhom, mass_tracer=True, discrete_tracer=False)
+    Uk = window_function(k, rv, c, profile='NFW')
+    return profile(k, M, Uk, M, rhom, mass_tracer=True, discrete_tracer=False)
 
 
 # def galaxy_profile(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, rhog:float, 
