@@ -50,7 +50,7 @@ class model():
     '''
     def __init__(self, z:float, Om_m:float, name='Tinker et al. (2010)', Dv=200., dc=1.686, verbose=False):
         '''
-        Class initialisation; configures mass function and halo bias.\n
+        Class initialisation; configures mass function and halo bias.
         Args:
             z: Redshift
             Om_m: Cosmological matter density
@@ -195,7 +195,7 @@ class model():
     def _mass_function_nu(self, nu:np.ndarray) -> np.ndarray:
         '''
         Halo mass function g(nu) with nu=delta_c/sigma(M)
-        Integral of g(nu) over all nu is unity\n
+        Integral of g(nu) over all nu is unity
         Args:
             nu: Peak height
         '''
@@ -220,8 +220,8 @@ class model():
 
     def _linear_bias_nu(self, nu:np.ndarray) -> np.ndarray:
         '''
-        Halo linear bias b(nu) with nu=delta_c/sigma(M)\n
-        Integral of b(nu)*g(nu) over all nu is unity\n
+        Halo linear bias b(nu) with nu=delta_c/sigma(M)
+        Integral of b(nu)*g(nu) over all nu is unity
         Args:
             nu: Peak height
         '''
@@ -259,9 +259,9 @@ class model():
 
     def mass_function(self, M:np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
         '''
-        Calculates the halo mass function as a function of halo mass\n
-        This is the comoving number-density of haloes per halo mass\n
-        Sometimes referred to as n(M) or dn/dM in the literature\n
+        Calculates the halo mass function as a function of halo mass
+        This is the comoving number-density of haloes per halo mass
+        Sometimes referred to as n(M) or dn/dM in the literature
         Args:
             M: Array of halo masses [Msun/h]
         '''
@@ -271,8 +271,8 @@ class model():
 
     def multiplicity_function(self, M:np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
         '''
-        Calculates M^2 n(M) / rhobar, the so-called halo multiplicity function\n
-        Note that this is dimensionless\n
+        Calculates M^2 n(M) / rhobar, the so-called halo multiplicity function
+        Note that this is dimensionless
         Args:
             M: Array of halo masses [Msun/h]
             sigmas(M): Optional array of previously calculated nu values corresponding to M
@@ -295,7 +295,7 @@ class model():
 
     def linear_bias(self, M:np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
         '''
-        Calculates the linear halo bias as a function of halo mass\n
+        Calculates the linear halo bias as a function of halo mass
         Args:
             M: Array of halo masses [Msun/h]
             sigmas(M): Optional array of previously calculated nu values corresponding to M
@@ -308,7 +308,7 @@ class model():
 
     def Lagrangian_radius(self, M:np.ndarray) -> np.ndarray:
         '''
-        Radius [Mpc/h] of a sphere containing mass M in a homogeneous universe\n
+        Radius [Mpc/h] of a sphere containing mass M in a homogeneous universe
         Args:
             M: Array of halo masses [Msun/h]
         '''
@@ -317,14 +317,14 @@ class model():
 
     def average(self, M:np.ndarray, fs:np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
         '''
-        Calculate the mean of some f(M) over halo mass <f>: int f(M)n(M)dM where n(M) = dn/dM in some notations.\n
-        Note that the units of n(M) are [(Msun/h)^{-1} (Mpc/h)^{-3}] so the units of the result are [F (Mpc/h)^{-3}].\n
+        Calculate the mean of some f(M) over halo mass <f>: int f(M)n(M)dM where n(M) = dn/dM in some notations.
+        Note that the units of n(M) are [(Msun/h)^{-1} (Mpc/h)^{-3}] so the units of the result are [F (Mpc/h)^{-3}].
         Common use cases:
             <M/rho> = 1 over all halo mass (equivalent to int g(nu)dnu = 1)
             <M^2/rho> = M_NL non-linear halo mass that maximall contributes to one-halo term (not M*)
             <b(M)M/rho> = 1 over all halo mass (equivalent to int g(nu)b(nu)dnu = 1)
             <N(M)> with N the number of galaxies in each halo of mass M; gives mean number density of galaxies
-            <b(M)N(M)>/<N(M)> with N the number of galaxies in each halo of mass M; gives mean bias of galaxies\n
+            <b(M)N(M)>/<N(M)> with N the number of galaxies in each halo of mass M; gives mean bias of galaxies
         Args:
             M: Array of halo masses [Msun/h]
             fs(M): Array of function to calculate mean density of (same length as M)
@@ -340,8 +340,8 @@ class model():
     def power_spectrum(self, k:np.ndarray, M:np.ndarray, profiles:dict, Pk_lin, beta=None, sigmas=None, 
         sigma=None, subtract_shotnoise=True, correct_discrete=True, k_trunc=None, verbose=False) -> tuple:
         '''
-        Computes power spectra given that halo model. Returns the two-halo, one-halo and sum terms.\n
-        TODO: Remove Pk_lin dependence?\n
+        Computes power spectra given that halo model. Returns the two-halo, one-halo and sum terms.
+        TODO: Remove Pk_lin dependence?
         Args:
             k: Array of wavenumbers [h/Mpc]
             M: Array of halo masses [Msun/h]
@@ -441,7 +441,7 @@ class model():
     def _Pk_2h(self, Pk_lin, k:float, M:np.ndarray, nu:np.ndarray, 
         Wu:float, Wv:float, mass_u:bool, mass_v:bool, A:float, beta=None) -> float:
         '''
-        Two-halo term at a specific wavenumber\n
+        Two-halo term at a specific wavenumber
         '''
         if beta is None:
             I_NL = 0.
@@ -454,7 +454,7 @@ class model():
 
     def _Pk_1h(self, M:np.ndarray, nu:np.ndarray, WuWv:float) -> float:
         '''
-        One-halo term at a specific wavenumber\n
+        One-halo term at a specific wavenumber
         '''
         integrand = WuWv*self._mass_function_nu(nu)/M
         P_1h = halo_integration(integrand, nu)
@@ -464,7 +464,7 @@ class model():
 
     def _I_2h(self, M:np.ndarray, nu:np.ndarray, W:float, mass:bool, A:float) -> float:
         '''
-        Evaluate the integral that appears in the two-halo term\n
+        Evaluate the integral that appears in the two-halo term
         '''
         integrand = W*self._linear_bias_nu(nu)*self._mass_function_nu(nu)/M
         I_2h = halo_integration(integrand, nu)
@@ -476,7 +476,7 @@ class model():
     def _I_beta(self, beta:np.ndarray, M:np.ndarray, nu:np.ndarray, Wu:float, Wv:float, 
         massu:bool, massv:bool, A:float) -> float:
         '''
-        Evaluates the beta_NL double integral\n
+        Evaluates the beta_NL double integral
         TODO: Loops maybe horribly inefficient loops here (outer product?)
         '''
         from numpy import trapz
@@ -524,7 +524,7 @@ class model():
     def power_spectrum_cross_halo_mass(self, k:np.ndarray, M:np.ndarray, profiles:dict, M_halo:float,
         Pk_lin, beta=None, sigmas=None, sigma=None, verbose=True) -> tuple:
         '''
-        Computes the power spectrum of a single tracer crossed with haloes of a single specific mass\n
+        Computes the power spectrum of a single tracer crossed with haloes of a single specific mass
         Args:
             k: Array of wavenumbers [h/Mpc]
             M: Array of halo masses [Msun/h]
@@ -590,7 +590,7 @@ class model():
     def _Pk_2h_hu(self, Pk_lin, k:float, M:np.ndarray, nuh:float, 
         nu:np.ndarray, Wk:float, mass:bool, A:float, beta=None) -> float:
         '''
-        Two-halo term for halo-u at a specific wavenumber\n
+        Two-halo term for halo-u at a specific wavenumber
         '''
         I_NL = self._I_beta_hu(beta, M, nuh, nu, Wk, mass, A) if beta is not None else 0.
         Ih = self._linear_bias_nu(nuh) # Simply the linear bias
@@ -601,7 +601,7 @@ class model():
     def _I_beta_hu(self, beta:np.ndarray, M:np.ndarray, nu_halo:float, nu:np.ndarray, 
         Wk:np.ndarray, mass:bool, A:float) -> float:
         '''
-        Evaluates the beta_NL integral for halo-u\n
+        Evaluates the beta_NL integral for halo-u
         '''
         from numpy import trapz
         b_halo = self._linear_bias_nu(nu_halo)
@@ -615,7 +615,7 @@ class model():
 
     def _peak_height(self, M:np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
         '''
-        Calculate peak-height (nu) values from array of halo masses\n
+        Calculate peak-height (nu) values from array of halo masses
         '''
         # Create arrays of R (Lagrangian) and nu values that correspond to the halo mass
         R = cosmology.Lagrangian_radius(M, self.Om_m)
@@ -634,7 +634,7 @@ class model():
 
     def virial_radius(self, M:np.ndarray) -> np.ndarray:
         '''
-        Halo virial radius based on the halo mass and overdensity condition\n
+        Halo virial radius based on the halo mass and overdensity condition
         Args:
             M: Halo mass [Msun/h]
         '''
@@ -647,8 +647,8 @@ class model():
 def interpolate_beta_NL(k:np.ndarray, M:np.ndarray, M_small:np.ndarray, beta_NL_small:np.ndarray, 
     scheme='RegularGridInterp', **kwargs) -> np.ndarray:
     '''
-    Wrapper for various beta_NL interpolation schemes to go from coarse grid of halo masses\n
-    to a finer grid of halo masses.\n
+    Wrapper for various beta_NL interpolation schemes to go from coarse grid of halo masses
+    to a finer grid of halo masses.
     Args:
         k: Array of wavenumbers [h/Mpc]
         M: Array of desired halo masses [Msun/h]
@@ -671,10 +671,10 @@ def interpolate_beta_NL(k:np.ndarray, M:np.ndarray, M_small:np.ndarray, beta_NL_
 def _interpolate_beta_NL(k:np.ndarray, M:np.ndarray, M_small:np.ndarray, beta_NL_small:np.ndarray, 
     fill_value=0.) -> np.ndarray:
     '''
-    Interpolate beta_NL from a small grid to a large grid for halo-model calculations.\n
-    TODO: Remove inefficient loops?\n
-    TODO: Add more interesting extrapolations. Currently just nearest neighbour,\n
-    which means everything outside the range is set to the same value.\n
+    Interpolate beta_NL from a small grid to a large grid for halo-model calculations.
+    TODO: Remove inefficient loops?
+    TODO: Add more interesting extrapolations. Currently just nearest neighbour,
+    which means everything outside the range is set to the same value.
     '''
     from scipy.interpolate import interp2d
     beta_NL = np.zeros((len(k), len(M), len(M))) # Array for output
@@ -690,7 +690,7 @@ def _interpolate_beta_NL(k:np.ndarray, M:np.ndarray, M_small:np.ndarray, beta_NL
 def _RegularGridInterp_beta_NL(k_in:np.ndarray, M_in:np.ndarray, beta_NL_in:np.ndarray, 
     k_out:np.ndarray, M_out:np.ndarray, method='linear') -> np.ndarray:
     '''
-    Supported methods are 'linear', 'nearest', 'slinear', 'cubic', and 'quintic'\n
+    Supported methods are 'linear', 'nearest', 'slinear', 'cubic', and 'quintic'
     '''
     from scipy.interpolate import RegularGridInterpolator
     bnl_interp = RegularGridInterpolator([np.log(k_in), M_in, M_in], beta_NL_in,
@@ -707,7 +707,7 @@ def _RegularGridInterp_beta_NL(k_in:np.ndarray, M_in:np.ndarray, beta_NL_in:np.n
 def _RegularGridInterp_beta_NL_log(k_in:np.ndarray, M_in:np.ndarray, beta_NL_in:np.ndarray, 
     k_out:np.ndarray, M_out:np.ndarray, method='linear') -> np.ndarray:
     '''
-    Supported methods are 'linear', 'nearest', 'slinear', 'cubic', and 'quintic'\n
+    Supported methods are 'linear', 'nearest', 'slinear', 'cubic', and 'quintic'
     '''
     from scipy.interpolate import RegularGridInterpolator
     bnl_interp = RegularGridInterpolator([np.log10(M_in), np.log10(M_in), np.log(k_in)], beta_NL_in,
@@ -726,7 +726,7 @@ def _RegularGridInterp_beta_NL_log(k_in:np.ndarray, M_in:np.ndarray, beta_NL_in:
 
 class profile():
     '''
-    Class for halo profiles\n
+    Class for halo profiles
     '''
     def __init__(self, k:np.ndarray, M:np.ndarray, Uk:np.ndarray, Wk:np.ndarray, 
         amp=None, norm=1., var=None, mass_tracer=False, discrete_tracer=False):
@@ -766,10 +766,10 @@ class profile():
     def Fourier(cls, k:np.ndarray, M:np.ndarray, Uk:np.ndarray,
         amp=None, norm=1., var=None, mass_tracer=False, discrete_tracer=False):
         '''
-        Class initialisation for Fourier space halo profiles.\n
-        Uk is assumed to be an array Uk(k, M) of the profile Fourier transform.\n
-        If amp=None then Uk is assumed to be dimensionful, otherwise Uk is assumed dimensionless with Uk(k->0, M) = 1\n
-        Matter profiles have amp=M (halo mass), galaxy profiles have amp=N (number of galaxies)\n
+        Class initialisation for Fourier space halo profiles.
+        Uk is assumed to be an array Uk(k, M) of the profile Fourier transform.
+        If amp=None then Uk is assumed to be dimensionful, otherwise Uk is assumed dimensionless with Uk(k->0, M) = 1
+        Matter profiles have amp=M (halo mass), galaxy profiles have amp=N (number of galaxies)
         Args:
             k: Array of wavenumbers [h/Mpc] going from low to high
             M: Array of halo masses [Msun/h] going from low to high
@@ -803,10 +803,10 @@ class profile():
     def configuration(cls, k:np.ndarray, M:np.ndarray, Prho, rv:np.ndarray, c:np.ndarray,
         amp=None, norm=1., var=None, mass_tracer=False, discrete_tracer=False):
         ''''
-        Alternative class initialisation for configuration-space haloes.\n
-        Prho is a halo (density or whatever) profile multiplied by 4pi r^2.\n
-        If amp=None then Prho is assumed to be normalised correctly, otherwise Phro can\n
-        have any normalisation and will be renormalaised by amp to have the correct 'mass'.\n
+        Alternative class initialisation for configuration-space haloes.
+        Prho is a halo (density or whatever) profile multiplied by 4pi r^2.
+        If amp=None then Prho is assumed to be normalised correctly, otherwise Phro can
+        have any normalisation and will be renormalaised by amp to have the correct 'mass'.
         Args:
             k: Array of wavenumbers [h/Mpc] going from low to high
             M: Array of halo masses [Msun/h] going from low to high
@@ -840,8 +840,8 @@ class profile():
 
 def _halo_window(k:float, M:float, rv:float, c:float, Prho:callable) -> float:
     '''
-    Compute the halo window function via integration given a 'density' profile Prho(r) = 4*pi*r^2*rho(r)\n
-    TODO: This should almost certainly be done with a dedicated integration routine (FFTlog?)\n
+    Compute the halo window function via integration given a 'density' profile Prho(r) = 4*pi*r^2*rho(r)
+    TODO: This should almost certainly be done with a dedicated integration routine (FFTlog?)
     TODO: Can this be made to accept arrays of M, rv, c as arguments?
     Args:
         k: Fourier wavenumber [h/Mpc]
@@ -875,8 +875,8 @@ def _halo_window(k:float, M:float, rv:float, c:float, Prho:callable) -> float:
 
 def Prho(r:np.ndarray, M:float, rv:float, c:float, name=None) -> np.ndarray:
     '''
-    Profile (density/emissivity) of a halo multiplied by 4pir^2\n
-    Defined to avoid infinities when evaluated at r=0\n
+    Profile (density/emissivity) of a halo multiplied by 4pir^2
+    Defined to avoid infinities when evaluated at r=0
     Args:
         r: Radius from halo centre [Mpc/h]
         M: Halo mass [Msun/h]
@@ -915,14 +915,14 @@ def Prho(r:np.ndarray, M:float, rv:float, c:float, name=None) -> np.ndarray:
 
 def _Prho_isothermal(_, M, rv):
     '''
-    Isothermal density profile multiplied by 4*pi*r^2\n
+    Isothermal density profile multiplied by 4*pi*r^2
     '''
     return M/rv
 
 
 def _Prho_NFW(r, M, rv, c):
     '''
-    NFW density profile multiplied by 4*pi*r^2\n
+    NFW density profile multiplied by 4*pi*r^2
     '''
     rs = rv/c
     return (M/c)*(r/rv**2)*(c**3)*_NFW_factor(c)/(1.+r/rs)**2
@@ -955,7 +955,7 @@ def _Prho_NFW(r, M, rv, c):
 
 def window_function(k:np.ndarray, rv:np.ndarray, *args, profile=None) -> np.ndarray:
     '''
-    Normalised Fourier tranform for a delta-function profile (unity)\n
+    Fourier transforms of halo profiles
     Args:
         k: Array of Fourier wavenumbers [h/Mpc]
         rv: Array of halo virial radii [Mpc/h]
@@ -975,7 +975,7 @@ def window_function(k:np.ndarray, rv:np.ndarray, *args, profile=None) -> np.ndar
 
 def _win_isothermal(k:np.ndarray, rv:np.ndarray) -> np.ndarray:
     '''
-    Normalised Fourier transform for an isothermal profile\n
+    Normalised Fourier transform for an isothermal profile
     Args:
         k: Array of Fourier wavenumber [h/Mpc]
         rv: Array of halo virial radius [Mpc/h]
@@ -989,7 +989,7 @@ def _win_isothermal(k:np.ndarray, rv:np.ndarray) -> np.ndarray:
 
 def _win_NFW(k:np.ndarray, rv:np.ndarray, c:np.ndarray) -> np.ndarray:
     '''
-    Normalised Fourier transform for an NFW profile\n
+    Normalised Fourier transform for an NFW profile
     Args:
         k: Fourier wavenumber [h/Mpc]
         rv: Halo virial radius [Mpc/h]
@@ -1011,7 +1011,7 @@ def _win_NFW(k:np.ndarray, rv:np.ndarray, c:np.ndarray) -> np.ndarray:
 
 def _NFW_factor(c:np.ndarray) -> np.ndarray:
     '''
-    Factor from normalisation that always appears in NFW equations\n
+    Factor from normalisation that always appears in NFW equations
     Args:
         c: Halo concentration
     '''
@@ -1020,7 +1020,7 @@ def _NFW_factor(c:np.ndarray) -> np.ndarray:
 
 def matter_profile(k:np.ndarray, M:np.ndarray, rv:np.ndarray, c:np.ndarray, Om_m:float) -> profile:
     '''
-    Pre-configured matter NFW profile\n
+    Pre-configured matter NFW profile
     Args:
         k: Array of wavenumbers [h/Mpc]
         M: Array of halo masses [Msun/h]
@@ -1084,7 +1084,7 @@ def matter_profile(k:np.ndarray, M:np.ndarray, rv:np.ndarray, c:np.ndarray, Om_m
 
 def concentration(M:np.ndarray, z:float, method='Duffy et al. (2008)', halo_definition='M200') -> np.ndarray:
     '''
-    Halo concentration as a function of halo mass and redshift\n
+    Halo concentration as a function of halo mass and redshift
     Args:
         M: Halo mass [Msun/h]
         z: redshift
@@ -1099,8 +1099,8 @@ def concentration(M:np.ndarray, z:float, method='Duffy et al. (2008)', halo_defi
 
 def _concentration_Duffy(M:np.ndarray, z:float, halo_definition='M200') -> np.ndarray:
     '''
-    Duffy et al (2008; 0804.2486) c(M) relation for WMAP5, See Table 1\n
-    Appropriate for the full (rather than relaxed) samples\n
+    Duffy et al (2008; 0804.2486) c(M) relation for WMAP5, See Table 1
+    Appropriate for the full (rather than relaxed) samples
     Args:
         M: Halo mass [Msun/h]
         z: redshift
@@ -1123,7 +1123,7 @@ def _concentration_Duffy(M:np.ndarray, z:float, halo_definition='M200') -> np.nd
 
 def HOD_mean(M:float, method='Zheng et al. (2005)', **kwargs) -> tuple:
     '''
-    Returns the expected (mean) number of central and satellite galaxies as a tuple\n
+    Returns the expected (mean) number of central and satellite galaxies as a tuple
     Args:
         M: Halo mass [Msun/h]
         method: simple, Zehavi et al. (2004), Zheng et al. (2005), Zhai et al. (2017)
@@ -1143,7 +1143,7 @@ def HOD_mean(M:float, method='Zheng et al. (2005)', **kwargs) -> tuple:
 
 def _HOD_simple(M:np.ndarray, Mmin=1e12, Msat=1e13, alpha=1.) -> tuple:
     '''
-    Simple HOD model\n
+    Simple HOD model
     Args:
         M: Halo mass [Msun/h]
         Mmin: Minimum halo mass to host a central galaxy [Msun/h]
@@ -1157,9 +1157,9 @@ def _HOD_simple(M:np.ndarray, Mmin=1e12, Msat=1e13, alpha=1.) -> tuple:
 
 def _HOD_Zehavi(M:np.ndarray, Mmin=1e12, M1=1e13, alpha=1.) -> tuple:
     '''
-    HOD model from Zehavi et al. (2004; https://arxiv.org/abs/astro-ph/0703457)\n
-    Same as Zheng model in the limit that sigma=0 and M0=0\n
-    Mean number of central galaxies is only ever 0 or 1 in this HOD\n
+    HOD model from Zehavi et al. (2004; https://arxiv.org/abs/astro-ph/0703457)
+    Same as Zheng model in the limit that sigma=0 and M0=0
+    Mean number of central galaxies is only ever 0 or 1 in this HOD
     Args:
         M: Halo mass [Msun/h]
         Mmin: Minimum halo mass to host a central galaxy [Msun/h]
@@ -1173,7 +1173,7 @@ def _HOD_Zehavi(M:np.ndarray, Mmin=1e12, M1=1e13, alpha=1.) -> tuple:
 
 def _HOD_Zheng(M:np.ndarray, Mmin=1e12, sigma=0.15, M0=1e12, M1=1e13, alpha=1.) -> tuple:
     '''
-    Zheng et al. (2005; https://arxiv.org/abs/astro-ph/0408564) HOD model\n
+    Zheng et al. (2005; https://arxiv.org/abs/astro-ph/0408564) HOD model
     Args:
         M: Halo mass [Msun/h]
         Mmin: Minimum halo mass to host a central galaxy [Msun/h]
@@ -1193,7 +1193,7 @@ def _HOD_Zheng(M:np.ndarray, Mmin=1e12, sigma=0.15, M0=1e12, M1=1e13, alpha=1.) 
 
 def _HOD_Zhai(M:np.ndarray, Mmin=10**13.68, sigma=0.82, Msat=10**14.87, alpha=0.41, Mcut=10**12.32) -> tuple:
     '''
-    HOD model from Zhai et al. (2017; https://arxiv.org/abs/1607.05383)\n
+    HOD model from Zhai et al. (2017; https://arxiv.org/abs/1607.05383)
     Args:
         M: Halo mass [Msun/h]
         Mmin: Minimum halo mass to host a central galaxy [Msun/h]
@@ -1213,9 +1213,9 @@ def _HOD_Zhai(M:np.ndarray, Mmin=10**13.68, sigma=0.82, Msat=10**14.87, alpha=0.
 
 def HOD_variance(p:np.ndarray, lam:np.ndarray, central_condition=False) -> tuple:
     '''
-    Expected variance (and covariance) in the numbers of central and satellite galaxies\n
-    Assumes Bernoulli statistics for centrals and Poisson statistics for satellites\n
-    The central condition modifies an 'underlying' Poisson distribution in a calculable way\n
+    Expected variance (and covariance) in the numbers of central and satellite galaxies
+    Assumes Bernoulli statistics for centrals and Poisson statistics for satellites
+    The central condition modifies an 'underlying' Poisson distribution in a calculable way
     Args:
         p: Probability of halo hosting a central galaxy
         lam: Mean number of satellite galaxies (iff central_condition=False)
