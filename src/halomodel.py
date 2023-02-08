@@ -11,7 +11,6 @@ import cosmology
 # TODO: Dedicated test suite against HMcode/HMx for different cosmologies/halo models/redshifts
 # TODO: Add more checks for Dv, dc value compatability with mass functions
 # TODO: Add covariance between profile amplitudes (low priority; hard and annoying)
-# TODO: Change beta(M1, M2, k) -> beta(k, M1, M2)?
 
 # Parameters
 dc_rel_tol = 1e-3    # Relative tolerance for checking 'closeness' of delta_c
@@ -51,7 +50,7 @@ class model():
     '''
     def __init__(self, z:float, Om_m:float, name='Tinker et al. (2010)', Dv=200., dc=1.686, verbose=False):
         '''
-        Class initialisation; mainly configures mass function and halo bias.\n
+        Class initialisation; configures mass function and halo bias.\n
         Args:
             z: Redshift
             Om_m: Cosmological matter density
@@ -276,6 +275,9 @@ class model():
         Note that this is dimensionless\n
         Args:
             M: Array of halo masses [Msun/h]
+            sigmas(M): Optional array of previously calculated nu values corresponding to M
+            sigma(R): Optional function to get sigma(R) at z of interest
+            Pk_lin(k): Optional function to get linear power at z of interest
         '''
         nu = self._peak_height(M, sigmas, sigma, Pk_lin)
         R = cosmology.Lagrangian_radius(M, self.Om_m)
@@ -296,6 +298,9 @@ class model():
         Calculates the linear halo bias as a function of halo mass\n
         Args:
             M: Array of halo masses [Msun/h]
+            sigmas(M): Optional array of previously calculated nu values corresponding to M
+            sigma(R): Optional function to get sigma(R) at z of interest
+            Pk_lin(k): Optional function to get linear power at z of interest
         '''
         nu = self._peak_height(M, sigmas, sigma, Pk_lin)
         return self._linear_bias_nu(nu)
@@ -337,12 +342,12 @@ class model():
         '''
         Computes power spectra given that halo model. Returns the two-halo, one-halo and sum terms.\n
         TODO: Remove Pk_lin dependence?\n
-        Inputs
+        Args:
             k: Array of wavenumbers [h/Mpc]
             M: Array of halo masses [Msun/h]
             profiles: Dictionary of halo profiles from halo_profile class and corresponding field names
             Pk_lin(k): Function to evaluate the linear power spectrum [(Mpc/h)^3]
-            beta(M1, M2, k): Optional array of beta_NL values at points M, M, k
+            beta(k, M1, M2): Optional array of beta_NL values at points M, M, k
             sigmas(M): Optional pre-computed array of linear sigma(M) values corresponding to M
             sigma(R): Optional function to evaluate the linear sigma(R)
             subtract_shotnoise: Should shot noise be subtracted from discrete spectra?
@@ -393,7 +398,7 @@ class model():
                         else:
                             Pk_2h[ik] = self._Pk_2h(Pk_lin, _k, M, nu, 
                                                     profile_u.Wk[ik, :], profile_v.Wk[ik, :],
-                                                    profile_u.mass_tracer, profile_v.mass_tracer, A, beta[:, :, ik])
+                                                    profile_u.mass_tracer, profile_v.mass_tracer, A, beta[ik, :, :])
 
                         # One-halo term, treat discrete auto case carefully
                         if name_u == name_v: 
@@ -526,7 +531,7 @@ class model():
             profiles: A dictionary of halo profiles (halo_profile class) with associated field names
             M_halo: Halo mass at which to evaluatae cross spectra [Msun/h]
             Pk_lin(k): Function to evaluate the linear power spectrum [(Mpc/h)^3]
-            beta(M, k): Optional array of beta_NL values at points M, k
+            beta(k, M): Optional array of beta_NL values at points M, k
             sigmas(M): Optional pre-computed array of linear sigma(M) values corresponding to M
             sigma(R): Optional function to evaluate the linear sigma(R)
             verbose: verbosity
@@ -570,7 +575,7 @@ class model():
                 if beta is None:
                     Pk_2h[ik] = self._Pk_2h_hu(Pk_lin, _k, M, nu_halo, nu, profile.Wk[ik, :], profile.mass_tracer, A)
                 else:
-                    Pk_2h[ik] = self._Pk_2h_hu(Pk_lin, _k, M, nu_halo, nu, profile.Wk[ik, :], profile.mass_tracer, A, beta[:, ik])
+                    Pk_2h[ik] = self._Pk_2h_hu(Pk_lin, _k, M, nu_halo, nu, profile.Wk[ik, :], profile.mass_tracer, A, beta[ik, :])
                 Pk_1h[ik] = Wk_halo_mass[name][ik] # Simply the halo profile at M=Mh here
                 Pk_2h_dict[name], Pk_1h_dict[name] = Pk_2h.copy(), Pk_1h.copy()
                 Pk_hm_dict[name] = Pk_2h_dict[name]+Pk_1h_dict[name]
@@ -648,7 +653,7 @@ def interpolate_beta_NL(k:np.ndarray, M:np.ndarray, M_small:np.ndarray, beta_NL_
         k: Array of wavenumbers [h/Mpc]
         M: Array of desired halo masses [Msun/h]
         M_small: Array of halo masses at which beta_NL_small is evaluated already
-        beta_NL_small: Array beta_NL(M_small, M_small, k)
+        beta_NL_small: Array beta_NL(k, M_small, M_small)
         scheme: Interpolation scheme
         **kwargs: To be passed to interpolation schemes
     '''
@@ -672,13 +677,13 @@ def _interpolate_beta_NL(k:np.ndarray, M:np.ndarray, M_small:np.ndarray, beta_NL
     which means everything outside the range is set to the same value.\n
     '''
     from scipy.interpolate import interp2d
-    beta_NL = np.zeros((len(M), len(M), len(k))) # Array for output
+    beta_NL = np.zeros((len(k), len(M), len(M))) # Array for output
     for ik, _ in enumerate(k):
-        beta_NL_interp = interp2d(np.log(M_small), np.log(M_small), beta_NL_small[:, :, ik],
+        beta_NL_interp = interp2d(np.log(M_small), np.log(M_small), beta_NL_small[ik, :, :],
             kind='linear', fill_value=fill_value)
         for iM1, M1 in enumerate(M):
             for iM2, M2 in enumerate(M):
-                beta_NL[iM1, iM2, ik] = beta_NL_interp(np.log(M1), np.log(M2))
+                beta_NL[ik, iM1, iM2] = beta_NL_interp(np.log(M1), np.log(M2))
     return beta_NL
 
 
@@ -688,12 +693,12 @@ def _RegularGridInterp_beta_NL(k_in:np.ndarray, M_in:np.ndarray, beta_NL_in:np.n
     Supported methods are 'linear', 'nearest', 'slinear', 'cubic', and 'quintic'\n
     '''
     from scipy.interpolate import RegularGridInterpolator
-    bnl_interp = RegularGridInterpolator([M_in, M_in, np.log(k_in)], beta_NL_in,
+    bnl_interp = RegularGridInterpolator([np.log(k_in), M_in, M_in], beta_NL_in,
         method=method, fill_value=None, bounds_error=False)
-    bnl_out = np.zeros((M_out.size, M_out.size, k_out.size))
-    indices = np.vstack(np.meshgrid(np.arange(M_out.size), np.arange(M_out.size), np.arange(k_out.size), 
+    bnl_out = np.zeros((len(k_out), len(M_out), len(M_out)))
+    indices = np.vstack(np.meshgrid(np.arange(k_out.size), np.arange(M_out.size), np.arange(M_out.size),
                                     copy=False)).reshape(3, -1).T
-    values = np.vstack(np.meshgrid(M_out, M_out, np.log(k_out), 
+    values = np.vstack(np.meshgrid(np.log(k_out), M_out, M_out, 
                                    copy=False)).reshape(3, -1).T
     bnl_out[indices[:, 0], indices[:, 1], indices[:, 2]] = bnl_interp(values)
     return bnl_out
@@ -707,10 +712,10 @@ def _RegularGridInterp_beta_NL_log(k_in:np.ndarray, M_in:np.ndarray, beta_NL_in:
     from scipy.interpolate import RegularGridInterpolator
     bnl_interp = RegularGridInterpolator([np.log10(M_in), np.log10(M_in), np.log(k_in)], beta_NL_in,
         method=method, fill_value=None, bounds_error=False)
-    bnl_out = np.zeros((M_out.size, M_out.size, k_out.size))
-    indices = np.vstack(np.meshgrid(np.arange(M_out.size), np.arange(M_out.size), np.arange(k_out.size), 
+    bnl_out = np.zeros((len(k_out), len(M_out), len(M_out)))
+    indices = np.vstack(np.meshgrid(np.arange(k_out.size), np.arange(M_out.size), np.arange(M_out.size), 
                                     copy=False)).reshape(3, -1).T
-    values = np.vstack(np.meshgrid(np.log10(M_out), np.log10(M_out), np.log(k_out), 
+    values = np.vstack(np.meshgrid(np.log(k_out), np.log10(M_out), np.log10(M_out), 
                                    copy=False)).reshape(3, -1).T
     bnl_out[indices[:, 0], indices[:, 1], indices[:, 2]] = bnl_interp(values)
     return bnl_out
@@ -921,7 +926,6 @@ def _Prho_NFW(r, M, rv, c):
     '''
     rs = rv/c
     return (M/c)*(r/rv**2)*(c**3)*_NFW_factor(c)/(1.+r/rs)**2
-
 
 # def Prho_UPP(r, rv, M, r500, z, Om_r, Om_m, Om_w, Om_v, h):
 #     '''
@@ -1172,8 +1176,8 @@ def _HOD_Zheng(M:np.ndarray, Mmin=1e12, sigma=0.15, M0=1e12, M1=1e13, alpha=1.) 
     Zheng et al. (2005; https://arxiv.org/abs/astro-ph/0408564) HOD model\n
     Args:
         M: Halo mass [Msun/h]
-        sigma: Width of central galaxy occupancy
         Mmin: Minimum halo mass to host a central galaxy [Msun/h]
+        sigma: Width of central galaxy occupancy
         M0: M0 parameter [Msun/h]
         M1: M1 parameter [Msun/h]
         alpha: Slope of satellite occupancy
@@ -1190,6 +1194,13 @@ def _HOD_Zheng(M:np.ndarray, Mmin=1e12, sigma=0.15, M0=1e12, M1=1e13, alpha=1.) 
 def _HOD_Zhai(M:np.ndarray, Mmin=10**13.68, sigma=0.82, Msat=10**14.87, alpha=0.41, Mcut=10**12.32) -> tuple:
     '''
     HOD model from Zhai et al. (2017; https://arxiv.org/abs/1607.05383)\n
+    Args:
+        M: Halo mass [Msun/h]
+        Mmin: Minimum halo mass to host a central galaxy [Msun/h]
+        sigma: Width of central galaxy occupancy
+        Msat: Halo mass to host a single satellite [Msun/h]
+        alpha: Slope of satellite occupancy with halo mass
+        Mcut: Halo mass for satellite cut off parameter [Msun/h]
     '''
     from scipy.special import erf
     if sigma == 0.:
