@@ -583,7 +583,7 @@ def get_beta_NL(emu, mass, ks, z, force_to_zero=0, mass_variable='mass', knl=5.)
     #index_knl, knl_closest = util.findClosestIndex(knl, ks)
     
     # Calculate beta_NL by looping over mass arrays
-    beta = np.zeros((len(Ms), len(Ms), len(ks)))
+    beta = np.zeros((len(ks), len(Ms), len(Ms)))
     for iM1, M1 in enumerate(Ms):
 
         # Linear halo bias
@@ -596,39 +596,39 @@ def get_beta_NL(emu, mass, ks, z, force_to_zero=0, mass_variable='mass', knl=5.)
                 # Create beta_NL
                 b2 = get_linear_halo_bias(emu, M2, z, klin, Pk_klin)
                 Pk_hh = emu.get_phh_mass(ks, M1, M2, z)
-                beta[iM1, iM2, :] = Pk_hh/(b1*b2*Pk_lin)-1.
+                beta[:, iM1, iM2] = Pk_hh/(b1*b2*Pk_lin)-1.
 
                 # Force Beta_NL to be zero at large scales if necessary
                 if force_to_zero != 0:
                     Pk_hh0 = emu.get_phh_mass(klin, M1, M2, z)
                     db = Pk_hh0/(b1*b2*Pk_klin)-1.
                     if force_to_zero == 1:
-                        beta[iM1, iM2, :] = beta[iM1, iM2, :]-db # Additive correction
+                        beta[:, iM1, iM2] = beta[:, iM1, iM2]-db # Additive correction
                     elif force_to_zero == 2:
-                        beta[iM1, iM2, :] = (beta[iM1, iM2, :]+1.)/(db+1.)-1. # Multiplicative correction
+                        beta[:, iM1, iM2] = (beta[:, iM1, iM2]+1.)/(db+1.)-1. # Multiplicative correction
                     elif force_to_zero == 3:
                         # print('setting beta_nl=beta_nl(k='+'%0.3f' % klin_closest+') for k<'+ '%0.3f' % klin_closest)
-                        beta[iM1, iM2, :index_klin] = beta[iM1, iM2, index_klin] # for k<klin use the value for klin or the closest to that
+                        beta[:index_klin, iM1, iM2, ] = beta[index_klin, iM1, iM2] # for k<klin use the value for klin or the closest to that
                     elif force_to_zero == 4:
                         # print('setting beta_nl=0 for k<'+ '%0.3f' % klin_closest)
-                        beta[iM1, iM2, :index_klin] = 0.0 # for k<klin set all values to zero
+                        beta[:index_klin, iM1, iM2, ] = 0.0 # for k<klin set all values to zero
                         # beta[iM1, iM2, index_knl:] = 0.0 
                     elif force_to_zero == 5:
-                        beta[iM1, iM2, :] = beta[iM1, iM2, :]*(1.-np.exp(-(ks/klin)**2.)) #Smoothly go to zero at k~klin
+                        beta[:, iM1, iM2] = beta[:, iM1, iM2]*(1.-np.exp(-(ks/klin)**2)) #Smoothly go to zero at k~klin
                     elif force_to_zero == 6:
                         # like 5 but with dependence on M1 and M2
                         if (iM1 == iM2) or (np.log10(M2/M1)<1):
                             truncate_bnl= (1.-np.exp(-(ks/klin)))
                         else:
                             truncate_bnl= (1.-np.exp(-(ks/klin)*np.log10(M2/M1)))
-                        beta[iM1, iM2, :] = beta[iM1, iM2, :]*truncate_bnl #Change to smoothly going to zero
+                        beta[:, iM1, iM2] = beta[:, iM1, iM2]*truncate_bnl #Change to smoothly going to zero
                     else:
                         raise ValueError('force_to_zero not set correctly, choose from 0-6')
 
             else:
 
                 # Use symmetry to not double calculate
-                beta[iM1, iM2, :] = beta[iM2, iM1, :]
+                beta[:, iM1, iM2] = beta[:, iM2, iM1]
          
     return beta 
 
