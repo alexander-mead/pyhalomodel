@@ -253,29 +253,31 @@ class model():
             raise ValueError('Halo model not recognised in linear_bias')
 
 
-    def mass_function(self, M:np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
+    def mass_function(self, M:np.ndarray, sigmaM:np.ndarray) -> np.ndarray:
         '''
         Calculates the halo mass function as a function of halo mass
         This is the comoving number-density of haloes per halo mass
         Sometimes referred to as n(M) or dn/dM in the literature
         Args:
-            M: Array of halo masses [Msun/h]
+            M: Halo masses [Msun/h]
+            sigmaM: Standard deviation in overdensity on mass scale M
         '''
-        F = self.multiplicity_function(M, sigmas, sigma, Pk_lin)
+        F = self.multiplicity_function(M, sigmaM)
         return F*self.rhom/M**2
 
 
-    def multiplicity_function(self, M:np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
+    def multiplicity_function(self, M:np.ndarray, sigmaM:np.ndarray, sigma=None, Pk_lin=None) -> np.ndarray:
         '''
         Calculates M^2 n(M) / rhobar, the so-called halo multiplicity function
         Note that this is dimensionless
+        TODO: Remove sigma and Pk_lin as arguments?
         Args:
-            M: Array of halo masses [Msun/h]
-            sigmas(M): Optional array of previously calculated nu values corresponding to M
+            M: Halo masses [Msun/h]
+            sigmaM(M): Standard deviation in overdensity on mass scale M
             sigma(R): Optional function to get sigma(R) at z of interest
             Pk_lin(k): Optional function to get linear power at z of interest
         '''
-        nu = self._peak_height(M, sigmas, sigma, Pk_lin)
+        nu = self._peak_height(M, sigmaM, sigma, Pk_lin) # TODO: Remove sigma and Pk_lin as arguments
         R = self.Lagrangian_radius(M)
         if Pk_lin is not None:
             dlnsigma2_dlnR = cosmology.dlnsigma2_dlnR(R, Pk_lin)
@@ -285,24 +287,23 @@ class model():
         else:
             # TODO: It would be good to avoid loop with a vectorised function here
             dlnsigma2_dlnR = np.zeros(len(R))
-            logR, logsigmas = np.log(R), np.log(sigmas)
+            logR, logsigmaM = np.log(R), np.log(sigmaM)
             for iR, _logR in enumerate(logR):
-                dlnsigma2_dlnR[iR] = 2.*util.derivative_from_samples(_logR, logR, logsigmas)
+                dlnsigma2_dlnR[iR] = 2.*util.derivative_from_samples(_logR, logR, logsigmaM)
             #dlnsigma2_dlnR = 2.*util.derivative_from_samples(np.log(R), np.log(R), np.log(sigmas))
         dnu_dlnm = -(nu/6.)*dlnsigma2_dlnR
         return self._mass_function_nu(nu)*dnu_dlnm
 
 
-    def linear_bias(self, M:np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
+    def linear_bias(self, M:np.ndarray, sigmaM:np.ndarray) -> np.ndarray:
         '''
         Calculates the linear halo bias as a function of halo mass
+        TODO: Remove sigma and Pk_lin as arguments?
         Args:
-            M: Array of halo masses [Msun/h]
-            sigmas(M): Optional array of previously calculated nu values corresponding to M
-            sigma(R): Optional function to get sigma(R) at z of interest
-            Pk_lin(k): Optional function to get linear power at z of interest
+            M: Halo masses [Msun/h]
+            sigmaM(M): Standard deviation in overdensity on mass scale M
         '''
-        nu = self._peak_height(M, sigmas, sigma, Pk_lin)
+        nu = self._peak_height(M, sigmaM)
         return self._linear_bias_nu(nu)
 
 
@@ -310,12 +311,12 @@ class model():
         '''
         Radius [Mpc/h] of a sphere containing mass M in a homogeneous universe
         Args:
-            M: Array of halo masses [Msun/h]
+            M: Halo masses [Msun/h]
         '''
         return cosmology.Lagrangian_radius(M, self.Om_m)
 
 
-    def average(self, M:np.ndarray, f:np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
+    def average(self, M:np.ndarray, sigmaM:np.ndarray, f:np.ndarray) -> np.ndarray:
         '''
         Calculate the mean of some f(M) over halo mass <f>: int f(M)n(M)dM where n(M) = dn/dM in some notations.
         Note that the units of n(M) are [(Msun/h)^{-1} (Mpc/h)^{-3}] so the units of the result are [f (Mpc/h)^{-3}]
@@ -328,30 +329,28 @@ class model():
             <N(M)> = rhog: with N the number of galaxies in each halo of mass M; gives mean number density of galaxies, rhog
             <b(M)N(M)>/<N(M)> = bg: with N the number of galaxies in each halo of mass M; gives mean bias of galaxies, bg
         Args:
-            M: Array of halo masses [Msun/h]
+            M: Halo masses [Msun/h]
+            sigmaM(M): Standard deviation in overdensity on mass scale M
             fs(M): Array of function to calculate mean density of (same length as M)
-            sigmas(M): Optional array of previously calculated nu values corresponding to M
-            sigma(R): Optional function to get sigma(R) at z of interest
-            Pk_lin(k): Optional function to get linear power at z of interest
         '''
-        nu = self._peak_height(M, sigmas, sigma, Pk_lin)
+        nu = self._peak_height(M, sigmaM)
         integrand = (f/M)*self._mass_function_nu(nu)
         return halo_integration(integrand, nu)*self.rhom
 
 
-    def power_spectrum(self, k:np.ndarray, M:np.ndarray, profiles:dict, sigmas=None, sigma=None, Pk_lin=None,
+    def power_spectrum(self, k:np.ndarray, M:np.ndarray, sigmaM:np.ndarray, profiles:dict, Pk_lin=None,
         beta=None, subtract_shotnoise=True, correct_discrete=True, k_trunc=None, verbose=False) -> tuple:
         '''
         Computes power spectra given that halo model. Returns the two-halo, one-halo and sum terms.
-        TODO: Remove Pk_lin dependence?
+        TODO: Remove sigma argument
         Args:
             k: Comoving wavenumbers [h/Mpc]
             M: Halo masses [Msun/h]
+            sigmaM(M): Optional pre-computed array of linear sigma(M) values corresponding to M
             profiles: Halo profiles from halo_profile class and corresponding field names
+            sigma(R): Optional function to evaluate the linear sigma(R)
             Pk_lin(k): Function to evaluate the linear power spectrum [(Mpc/h)^3]
             beta(k, M1, M2): Optional array of beta_NL values at points M, M, k
-            sigmas(M): Optional pre-computed array of linear sigma(M) values corresponding to M
-            sigma(R): Optional function to evaluate the linear sigma(R)
             subtract_shotnoise: Should shot noise be subtracted from discrete spectra?
             correct_discrete: Properly treat discrete tracers with <N(N-1)> rather than <N^2>?
             k_trunc: None or wavenumber [h/Mpc] at which to truncate the one-halo term at large scales
@@ -367,7 +366,7 @@ class model():
             if (M != profile.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
 
         # Create arrays of R (Lagrangian radius) and nu values that correspond to the halo mass
-        nu = self._peak_height(M, sigmas, sigma, Pk_lin)
+        nu = self._peak_height(M, sigmaM)
 
         # Calculate the missing halo-bias from the low-mass part of the integral
         A = 1.-integrate.quad(lambda nu: self._mass_function_nu(nu)*self._linear_bias_nu(nu), nu[0], np.inf)[0]
@@ -480,18 +479,23 @@ class model():
         '''
         from numpy import trapz
         integrand = np.zeros((len(nu), len(nu)))
-        for iM1, nu1 in enumerate(nu):
-            for iM2, nu2 in enumerate(nu):
-                if iM2 >= iM1:
-                    M1, M2 = M[iM1], M[iM2]
-                    W1, W2 = Wu[iM1], Wv[iM2]
-                    g1 = self._mass_function_nu(nu1)
-                    g2 = self._mass_function_nu(nu2)
-                    b1 = self._linear_bias_nu(nu1)
-                    b2 = self._linear_bias_nu(nu2)
-                    integrand[iM1, iM2] = beta[iM1, iM2]*W1*W2*g1*g2*b1*b2/(M1*M2)
-                else:
-                    integrand[iM1, iM2] = integrand[iM2, iM1]
+        # for iM1, nu1 in enumerate(nu):
+        #     for iM2, nu2 in enumerate(nu):
+        #         if iM2 >= iM1:
+        #             M1, M2 = M[iM1], M[iM2]
+        #             W1, W2 = Wu[iM1], Wv[iM2]
+        #             g1 = self._mass_function_nu(nu1)
+        #             g2 = self._mass_function_nu(nu2)
+        #             b1 = self._linear_bias_nu(nu1)
+        #             b2 = self._linear_bias_nu(nu2)
+        #             integrand[iM1, iM2] = beta[iM1, iM2]*W1*W2*g1*g2*b1*b2/(M1*M2)
+        #         else:
+        #             integrand[iM1, iM2] = integrand[iM2, iM1]
+        W1W2 = np.outer(Wu, Wv)
+        g1g2 = np.outer(self._mass_function_nu(nu), self._mass_function_nu(nu))
+        b1b2 =  np.outer(self._linear_bias_nu(nu), self._linear_bias_nu(nu))
+        M1M2 = np.outer(M, M)
+        integrand = beta*W1W2*g1g2*b1b2/M1M2
         integral = util.trapz2d(integrand, nu, nu)
         if do_I11 and massu and massv:
             integral += beta[0, 0]*(A**2)*Wu[0]*Wv[0]/M[0]**2
@@ -508,18 +512,19 @@ class model():
         return integral*self.rhom**2
 
 
-    def power_spectrum_cross_halo_mass(self, k:np.ndarray, M:np.ndarray, profiles:dict, M_halo:float,
-        sigmas=None, sigma=None, Pk_lin=None, beta=None, verbose=True) -> tuple:
+    def power_spectrum_cross_halo_mass(self, k:np.ndarray, M:np.ndarray, sigmaM:np.ndarray, profiles:dict, M_halo:float,
+        Pk_lin=None, beta=None, verbose=True) -> tuple:
         '''
         Computes the power spectrum of a single tracer crossed with haloes of a single specific mass
         Args:
-            k: Array of wavenumbers [h/Mpc]
-            M: Array of halo masses [Msun/h]
+            k: Comoving wavenumbers [h/Mpc]
+            M: Halo masses [Msun/h]
+            sigmaM(M): Optional pre-computed array of linear sigma(M) values corresponding to M
             profiles: A dictionary of halo profiles (halo_profile class) with associated field names
             M_halo: Halo mass at which to evaluatae cross spectra [Msun/h]
             Pk_lin(k): Function to evaluate the linear power spectrum [(Mpc/h)^3]
             beta(k, M): Optional array of beta_NL values at points M, k
-            sigmas(M): Optional pre-computed array of linear sigma(M) values corresponding to M
+            
             sigma(R): Optional function to evaluate the linear sigma(R)
             verbose: verbosity
         '''
@@ -535,7 +540,7 @@ class model():
             if (M != profile.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
 
         # Create arrays of R (Lagrangian radius) and nu values that correspond to the halo mass
-        nu = self._peak_height(M, sigmas, sigma, Pk_lin)
+        nu = self._peak_height(M, sigmaM)
 
         # Calculate the missing halo-bias from the low-mass part of the integral
         integrand = self._mass_function_nu(nu)*self._linear_bias_nu(nu)
@@ -602,22 +607,20 @@ class model():
         return b_halo*integral*self.rhom
 
 
-    def _peak_height(self, M:np.ndarray, sigmas=None, sigma=None, Pk_lin=None) -> np.ndarray:
+    def _peak_height(self, M:np.ndarray, sigmaM:np.ndarray, sigma=None, Pk_lin=None) -> np.ndarray:
         '''
         Calculate peak-height (nu) values from array of halo masses
         '''
-        # Create arrays of R (Lagrangian) and nu values that correspond to the halo mass
-        R = self.Lagrangian_radius(M)
-
-        # Convert R values to nu via sigma(R)
-        if sigmas is not None:
-            nu = self.dc/sigmas # Use the provided sigma(R) values or...
+        if sigmaM is not None:
+            nu = self.dc/sigmaM # Use the provided sigma(R) values or...
         elif sigma is not None:
+            R = self.Lagrangian_radius(M)
             nu = self.dc/sigma(R) # ...otherwise evaluate the provided sigma(R) function or...
         elif Pk_lin is not None:
+            R = self.Lagrangian_radius(M)
             nu = self.dc/cosmology.sigmaR(R, Pk_lin, integration_type='quad') # ...otherwise integrate
         else:
-            raise ValueError('Error, you need to specify (at least) one of Pk_lin, sigma or sigmas') 
+            raise ValueError('Error, you need to specify (at least) one of Pk_lin, sigma or sigmaM') 
         return nu
 
 
