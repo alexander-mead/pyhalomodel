@@ -579,7 +579,7 @@ def get_beta_NL(emu, mass, ks, z, force_to_zero=0, mass_variable='mass', knl=5.)
     # Linear power
     Pk_lin = emu.get_pklin_from_z(ks, z)
     Pk_klin = emu.get_pklin_from_z(klin, z)
-    index_klin, _ = util.findClosestIndex(klin, ks)
+    index_klin, _ = util.find_closest_index_value(klin, ks)
     #index_knl, knl_closest = util.findClosestIndex(knl, ks)
     
     # Calculate beta_NL by looping over mass arrays
@@ -657,7 +657,7 @@ def get_beta_NL_1D(emu, Mh, mass, ks, z, force_to_zero=0, mass_variable='mass', 
     # Linear power
     Pk_lin = emu.get_pklin_from_z(ks, z)
     Pk_klin = emu.get_pklin_from_z(klin, z)
-    index_klin, _ = util.findClosestIndex(klin, ks)
+    index_klin, _ = util.find_closest_index_value(klin, ks)
     bh = get_linear_halo_bias(emu, Mh, z, klin, Pk_klin)
     
     # Calculate beta_NL by looping over mass arrays
