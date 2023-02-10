@@ -167,6 +167,7 @@ class model():
         if verbose:
             print()
 
+
     def __str__(self):
         print('Halo model:', self.name)
         print('Scale factor: %1.3f'%(self.a))
@@ -298,7 +299,6 @@ class model():
     def linear_bias(self, M:np.ndarray, sigmaM:np.ndarray) -> np.ndarray:
         '''
         Calculates the linear halo bias as a function of halo mass
-        TODO: Remove sigma and Pk_lin as arguments?
         Args:
             M: Halo masses [Msun/h]
             sigmaM(M): Standard deviation in overdensity on mass scale M
@@ -338,18 +338,17 @@ class model():
         return halo_integration(integrand, nu)*self.rhom
 
 
-    def power_spectrum(self, k:np.ndarray, M:np.ndarray, sigmaM:np.ndarray, profiles:dict, Pk_lin=None,
+    def power_spectrum(self, k:np.ndarray, Pk_lin:np.ndarray, M:np.ndarray, sigmaM:np.ndarray, profiles:dict, 
         beta=None, subtract_shotnoise=True, correct_discrete=True, k_trunc=None, verbose=False) -> tuple:
         '''
         Computes power spectra given that halo model. Returns the two-halo, one-halo and sum terms.
-        TODO: Remove sigma argument
         Args:
             k: Comoving wavenumbers [h/Mpc]
+            Pk_lin(k): Linear power at each wavenumber [(Mpc/h)^3]
             M: Halo masses [Msun/h]
             sigmaM(M): Optional pre-computed array of linear sigma(M) values corresponding to M
             profiles: Halo profiles from halo_profile class and corresponding field names
             sigma(R): Optional function to evaluate the linear sigma(R)
-            Pk_lin(k): Function to evaluate the linear power spectrum [(Mpc/h)^3]
             beta(k, M1, M2): Optional array of beta_NL values at points M, M, k
             subtract_shotnoise: Should shot noise be subtracted from discrete spectra?
             correct_discrete: Properly treat discrete tracers with <N(N-1)> rather than <N^2>?
@@ -389,15 +388,15 @@ class model():
                 reverse_name = name_v+'-'+name_u # Reverse name to avoid double computations for cross terms
                 if verbose: print('Calculating power:', power_name)
                 if iu <= iv:
-                    for ik, _k in enumerate(k): # Loop over wavenumbers
+                    for ik, _Pk_lin in enumerate(Pk_lin): # Loop over wavenumbers
 
                         # Two-halo term, treat non-linear halo bias carefully
                         if beta is None: 
-                            Pk_2h[ik] = self._Pk_2h(_k, M, nu, profile_u.Wk[ik, :], profile_v.Wk[ik, :],
-                                                    profile_u.mass_tracer, profile_v.mass_tracer, A, Pk_lin)
+                            Pk_2h[ik] = self._Pk_2h(_Pk_lin, M, nu, profile_u.Wk[ik, :], profile_v.Wk[ik, :],
+                                                    profile_u.mass_tracer, profile_v.mass_tracer, A)
                         else:
-                            Pk_2h[ik] = self._Pk_2h(_k, M, nu, profile_u.Wk[ik, :], profile_v.Wk[ik, :],
-                                                    profile_u.mass_tracer, profile_v.mass_tracer, A, Pk_lin, beta[ik, :, :])
+                            Pk_2h[ik] = self._Pk_2h(_Pk_lin, M, nu, profile_u.Wk[ik, :], profile_v.Wk[ik, :],
+                                                    profile_u.mass_tracer, profile_v.mass_tracer, A, beta[ik, :, :])
 
                         # One-halo term, treat discrete auto case carefully
                         if name_u == name_v: 
@@ -423,13 +422,13 @@ class model():
 
                     # Finish
                     Pk_2h_dict[power_name], Pk_1h_dict[power_name] = Pk_2h.copy(), Pk_1h.copy()
-                    if Pk_lin is not None: Pk_hm_dict[power_name] = Pk_2h_dict[power_name]+Pk_1h_dict[power_name]
+                    Pk_hm_dict[power_name] = Pk_2h_dict[power_name]+Pk_1h_dict[power_name]
 
                 else:
                     # No need to do these calculations twice
                     Pk_2h_dict[power_name] = Pk_2h_dict[reverse_name]
                     Pk_1h_dict[power_name] = Pk_1h_dict[reverse_name]
-                    if Pk_lin is not None: Pk_hm_dict[power_name] = Pk_hm_dict[reverse_name]
+                    Pk_hm_dict[power_name] = Pk_hm_dict[reverse_name]
 
         # Finish
         t2 = time() # Final time
@@ -437,17 +436,15 @@ class model():
         return Pk_2h_dict, Pk_1h_dict, Pk_hm_dict
 
 
-    def _Pk_2h(self, k:float, M:np.ndarray, nu:np.ndarray, Wu:float, Wv:float,
-        mass_u:bool, mass_v:bool, A:float, Pk_lin=None, beta=None) -> float:
+    def _Pk_2h(self, Pk_lin:float, M:np.ndarray, nu:np.ndarray, Wu:float, Wv:float,
+        mass_u:bool, mass_v:bool, A:float, beta=None) -> float:
         '''
         Two-halo term at a specific wavenumber
         '''
         I_NL = 0. if beta is None else self._I_beta(beta, M, nu, Wu, Wv, mass_u, mass_v, A)
         Iu = self._I_2h(M, nu, Wu, mass_u, A)
         Iv = self._I_2h(M, nu, Wv, mass_v, A)
-        result = Iu*Iv+I_NL
-        if Pk_lin is not None: result *= Pk_lin(k)
-        return result
+        return (Iu*Iv+I_NL)*Pk_lin
 
 
     def _Pk_1h(self, M:np.ndarray, nu:np.ndarray, WuWv:float) -> float:
@@ -512,19 +509,18 @@ class model():
         return integral*self.rhom**2
 
 
-    def power_spectrum_cross_halo_mass(self, k:np.ndarray, M:np.ndarray, sigmaM:np.ndarray, profiles:dict, M_halo:float,
-        Pk_lin=None, beta=None, verbose=True) -> tuple:
+    def power_spectrum_cross_halo_mass(self, k:np.ndarray, Pk_lin:np.ndarray, M:np.ndarray, sigmaM:np.ndarray, profiles:dict, M_halo:float,
+        beta=None, verbose=True) -> tuple:
         '''
         Computes the power spectrum of a single tracer crossed with haloes of a single specific mass
         Args:
             k: Comoving wavenumbers [h/Mpc]
+            Pk_lin(k): Linear power at each wavenumber [(Mpc/h)^3]
             M: Halo masses [Msun/h]
             sigmaM(M): Optional pre-computed array of linear sigma(M) values corresponding to M
             profiles: A dictionary of halo profiles (halo_profile class) with associated field names
             M_halo: Halo mass at which to evaluatae cross spectra [Msun/h]
-            Pk_lin(k): Function to evaluate the linear power spectrum [(Mpc/h)^3]
             beta(k, M): Optional array of beta_NL values at points M, k
-            
             sigma(R): Optional function to evaluate the linear sigma(R)
             verbose: verbosity
         '''
@@ -563,14 +559,14 @@ class model():
         Pk_2h_dict, Pk_1h_dict, Pk_hm_dict = {}, {}, {}
         Pk_2h, Pk_1h = np.zeros_like(k), np.zeros_like(k)
         for name, profile in profiles.items():
-            for ik, _k in enumerate(k):
+            for ik, _Pk_lin in enumerate(Pk_lin):
                 if beta is None:
-                    Pk_2h[ik] = self._Pk_2h_hu(_k, M, nu_halo, nu, profile.Wk[ik, :], profile.mass_tracer, A, Pk_lin)
+                    Pk_2h[ik] = self._Pk_2h_hu(_Pk_lin, M, nu_halo, nu, profile.Wk[ik, :], profile.mass_tracer, A)
                 else:
-                    Pk_2h[ik] = self._Pk_2h_hu(_k, M, nu_halo, nu, profile.Wk[ik, :], profile.mass_tracer, A, beta[ik, :], Pk_lin)
+                    Pk_2h[ik] = self._Pk_2h_hu(_Pk_lin, M, nu_halo, nu, profile.Wk[ik, :], profile.mass_tracer, A, beta[ik, :])
                 Pk_1h[ik] = Wk_halo_mass[name][ik] # Simply the halo profile at M=Mh here
                 Pk_2h_dict[name], Pk_1h_dict[name] = Pk_2h.copy(), Pk_1h.copy()
-                if Pk_lin is not None: Pk_hm_dict[name] = Pk_2h_dict[name]+Pk_1h_dict[name]
+                Pk_hm_dict[name] = Pk_2h_dict[name]+Pk_1h_dict[name]
         t2 = time() # Final time
 
         if verbose:  
@@ -579,17 +575,15 @@ class model():
         return Pk_2h_dict, Pk_1h_dict, Pk_hm_dict
 
 
-    def _Pk_2h_hu(self, k:float, M:np.ndarray, nuh:float, nu:np.ndarray, 
-        Wk:float, mass:bool, A:float, Pk_lin=None, beta=None) -> float:
+    def _Pk_2h_hu(self, Pk_lin:float, M:np.ndarray, nuh:float, nu:np.ndarray, 
+        Wk:float, mass:bool, A:float, beta=None) -> float:
         '''
         Two-halo term for halo-u at a specific wavenumber
         '''
         I_NL = 0. if beta is None else self._I_beta_hu(beta, M, nuh, nu, Wk, mass, A)
         Ih = self._linear_bias_nu(nuh) # Simply the linear bias
         Iu = self._I_2h(M, nu, Wk, mass, A) # Same as for the standard two-halo term
-        result = Ih*Iu+I_NL
-        if Pk_lin is not None: result *= Pk_lin(k)
-        return result
+        return (Ih*Iu+I_NL)*Pk_lin
 
 
     def _I_beta_hu(self, beta:np.ndarray, M:np.ndarray, nu_halo:float, nu:np.ndarray, 
