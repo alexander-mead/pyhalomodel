@@ -418,7 +418,7 @@ class model():
                         if correct_discrete and (not subtract_shotnoise):
                             Pk_1h += Pk_SN[name_u] # Need to add shot noise
                         elif (not correct_discrete) and subtract_shotnoise:
-                            warnings.warn('Warning: Subtracting shot noise while not treating discreteness properly is dangerous', RuntimeWarning)
+                            warnings.warn('Warning: Subtracting shot noise while not treating discreteness properly is bad', RuntimeWarning)
                             Pk_1h[:] -= Pk_SN[name_u] # Need to subtract shot noise
                     if k_trunc is not None: Pk_1h *= 1.-np.exp(-(k/k_trunc)**2) # Suppress one-halo term
 
@@ -782,18 +782,11 @@ class profile():
         '''
         # Set internal variables
         if Uk.shape != (k.shape[0], M.shape[0]): raise ValueError('Array shapes do not match')
-        #cls.k, cls.M = k.copy(), M.copy()
-        #cls.mass_tracer, cls.discrete_tracer = mass_tracer, discrete_tracer
-        #cls.norm = norm
-        #cls.var = var.copy() if var is not None else var
         if amp is None:
             amp = Uk[0, :] # TODO: Integrate to get this? This relies on k[0] being small!
             Wk = Uk
             _Uk = Uk/amp
         else:
-            #cls.amp = amp.copy()
-            #cls.Uk = Uk.copy()
-            #self.Wk = (self.Uk.T*self.amp).T/self.norm # Transposes necessary to get multiplication correct
             _Uk = Uk
             Wk = (amp*Uk)/norm
             
