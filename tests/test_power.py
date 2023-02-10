@@ -8,8 +8,8 @@ import camb
 
 # Projet imports
 sys.path.append('./../src')
-import cosmology # TODO: Remove dependancy
-import halomodel
+import cosmology
+import halomodel as halo
 
 ### Parameters ###
 
@@ -99,21 +99,22 @@ class TestPower(unittest.TestCase):
             infile = 'benchmarks/power_mm_z%1.1f.dat'%(z)
             benchmark = np.loadtxt(infile)
             ks = benchmark[:, 0]
+            Pks_lin = Pk_lin(z, ks)
 
             # Initialise halo model
-            hmod = halomodel.halo_model(z, Omega_m, name=halomodel_name, Dv=Dv, dc=dc)
+            hmod = halo.model(z, Omega_m, name=halomodel_name, Dv=Dv, dc=dc)
 
             # Halo mass range [Msun/h] and Lagrangian radii [Mpc/h] corresponding to halo masses
             Rs = hmod.Lagrangian_radius(Ms)
             sigmaRs = cosmology.sigmaR(Rs, camb_results, integration_type='camb')[zs.index(z)]
             rvs = hmod.virial_radius(Ms)
-            cs = halomodel.concentration(Ms, z, halo_definition=halo_definition)
+            cs = halo.concentration(Ms, z, halo_definition=halo_definition)
 
             # Create a matter profile
-            matter_profile = halomodel.matter_profile(ks, Ms, rvs, cs, hmod.Om_m)
+            matter_profile = halo.matter_profile(ks, Ms, rvs, cs, hmod.Om_m)
 
             # Power spectrum calculation
-            _, _, Pk = hmod.power_spectrum(ks, Ms, {'m': matter_profile}, lambda k: Pk_lin(z, k), sigmas=sigmaRs)
+            _, _, Pk = hmod.power_spectrum(ks, Pks_lin, Ms, sigmaRs, {'m': matter_profile})
 
             # Save data
             outfile = 'results/power_mm_z%1.1f.dat'%(z)
