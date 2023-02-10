@@ -10,3 +10,6 @@ __pycache__/
 
 # Test outputs
 halomodel/tests/results/*.dat
+
+# Scrap
+notebooks/scrap.ipynb
