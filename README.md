@@ -2,9 +2,8 @@
 This repository is home to the code that comes with with halo-model review paper of `Asgari, Mead & Heymans (2023)`. The software is written entirely in *python*, with extendability and reusability in mind. The purpose of this software is to take some of the drudgery out of performing basic calculations using the halo model. While the integrals that the halo model requires the researcher to evaluate are simple, in practice the changes of variables required to integrate halo profiles against halo mass functions can be confusing and tedious. In our experience this confusion has led to bugs and misunderstandings over the years, and our hope for this software is to reduce the proliferation of these somewhat. Our software can produce power spectra for *any* combinations of tracers, and simply requires halo profiles for the tracers to be specified. These could be matter profiles, galaxy profiles, or anything else, for example electron-pressure profiles (which pertain to the thermal Sunyaev-Zel`dovich effect).
 
 ## Dependencies
-These are the external libraries that you'll need to install for this pipe to run: 
-* [CAMB](https://camb.readthedocs.io/en/latest/)
-* [Dark Emulator](https://pypi.org/project/dark-emulator/)
+* `numpy`
+* `scipy`
 
 ## Installation
 Simply clone the repository. You can then create an environment with all necessary dependencies using [poetry](https://python-poetry.org/):
@@ -21,7 +20,7 @@ Start a script with
 import numpy
 import halomodel as halo
 ```
-ensuring that `halomodel.py` is visible to your `path`. To make non-linear power spectrum predictions using the halo model requires a linear power spectrum. In our notebooks we always take this from `CAMB`, but it could come from any source. Calculations also require the variance in the linear density field when smoothed on comoving scale $R$: $\sigma^2(R)$. Once again, this function could come from any source, but we take it from `CAMB`.
+ensuring that `halomodel.py` is visible to your `path`. Importing via `import halomodel as halo` is nice because the functions then have nice names. To make non-linear power spectrum predictions using the halo model requires a linear power spectrum. In our demonstration notebooks we always take this from `CAMB`, but it could come from any source. Calculations also require the variance in the linear density field when smoothed on comoving scale $R$: $\sigma^2(R)$. Once again, this function could come from any source, but we take it from `CAMB`.
 
 A typical call to create an instance of a `model` object looks like
 ```
@@ -45,20 +44,20 @@ When the `hmod` instance is created the desired mass function is initialised. Th
 
 To make a power-spectrum calculation one simply calls:
 ```
-Pk_2h, Pk_1h, Pk_hm = hmod.power_spectrum(k, M, profiles, Pk_lin, sigmas)
+Pk_2h, Pk_1h, Pk_hm = hmod.power_spectrum(k, Pk_lin, M, sigmaM, profiles)
 ```
 where: 
 - `k` is an array of comoving Fourier wavenumbers (units: $h\mathrm{Mpc}^{-1}$)
+- `Pk_lin` is an array of linear power spectrum values at a given `k` (units: $(h^{-1}\mathrm{Mpc})^3$)
 - `M` is an array of halo masses (units: $h^{-1}M_\odot$)
+- `sigmaM` is an array of root-variance linear density values at Lagrangian scales corresponding to `M`
 - `profiles` is a dictionary of `profile`s (see below; could contain a single entry)
-- `Pk_lin` is a function that evaluates the linear power spectrum at a given `k`
-- `sigmas` is an array of root-variance linear density values at Lagrangian scales corresponding to `M`
 
-The function returns a tuple of `Pk_2h` (two-halo), `Pk_1h` (one-halo), and `Pk_hm` (full halo model; usually the sum) power at the chosen `k` values. The `power_spectrum` method computes all possible auto- and cross-spectra given the dictionary of halo profiles. For example, if three profiles were in the dictionary this would compute the three autospectra and three unique cross spectra. The returned `Pk` are then dictionaries containing all possible spectra. For example, if `profiles={'a':profile_a, 'b':profile_b, 'c':profile_c}` then the `Pk` dictionaries will contain the keys: `a-a`; `a-b`; `a-c`; `b-a`; `b-b`; `b-c`; `c-a`; `c-b`; `c-c`, where the values in `a-b` and `b-a` (for example) will be identical. Of course, each value in the `Pk` dictionary is an array of the power at all `k` values.
+The function returns a tuple of `Pk_2h` (two-halo), `Pk_1h` (one-halo), and `Pk_hm` (halo model) power at the chosen `k` values. The `power_spectrum` method computes all possible auto- and cross-spectra given the dictionary of halo profiles. For example, if three profiles were in the dictionary this would compute the three autospectra and three unique cross spectra. The returned `Pk` are then dictionaries containing all possible spectra. For example, if `profiles={'a':profile_a, 'b':profile_b, 'c':profile_c}` then the `Pk` dictionaries will contain the keys: `a-a`; `a-b`; `a-c`; `b-b`; `b-c`, `c-c`. It will also contain symmetric combinations (e.g., `b-a` as well as `a-b`) but the values will be identical. Each value in the `Pk` dictionary is an array of the power at all `k` values.
 
 Halo profiles are instances of the `profile` class. These are initialised in Fourier space like:
 ```
-halo.profile.Fourier(k, M, Uk, amp=None, norm=1., var=None, mass_tracer=False, discrete_tracer=False)
+profile = halo.profile.Fourier(k, M, Uk, amp=None, norm=1., var=None, mass_tracer=False, discrete_tracer=False)
 ```
 where
 - `k` is an array of comoving Fourier wavenumbers (units: $h\mathrm{Mpc}^{-1}$)
@@ -82,9 +81,7 @@ galaxy_profile = halo.profile.Fourier(k, M, Uk_galaxy, amp=N_galaxy, norm=rho_ga
 ```
 would create a galaxy profile. Here `Uk_galaxy` would be the normalised Fourier transform of a galaxy profile (e.g., an isothermal profile). The amplitude of the profile is the mean galaxy-occupation number at each `M`: `amp=N_galaxy`. The field is normalised by the mean galaxy density `rho_galaxy`. The variance in galaxy number at each `M` is `var_galaxy`. We tell the code that `discrete_tracer=True` because in the discrete-tracer case it is essential to split the profile amplitude from the field normalisation if the discreteness of the tracer is to be accounted for properly.
 
-Note that *covariance* in the mean profile amplitude between two different tracers is not currently supported (this can be important in halo-occupation models where galaxies are split into centrals and satellites and the presence of a satellite galaxy is conditional on the halo first containing a central galaxy); we hope to include this in future. Also any spatial variance or covariance in halo profiles at fixed mass is not currently supported; we have no plans to include this in future.
-
-Halo profiles can also be specified in configuration (real) space, via a function of radius from the halo centre. This is slower than specifying the Fourier profiles since the conversion to Fourier space will need to be performed internally.
+Halo profiles can also be specified in configuration (real) space, via a function of radius from the halo centre. This is slower than specifying the Fourier profiles since the conversion of the profile to Fourier space will need to be performed internally.
 ```
 halo.profile.configuration(k, M, Prho, rv, c, amp=None, norm=1., var=None, mass_tracer=False, discrete_tracer=False):
 ```
@@ -109,30 +106,10 @@ galaxy_profile = halo.profile.configuration(k, M, Prho_gal, rv, c, amp=N_galaxy,
 ```
 in the discrete tracer case it is important to split up `norm` and `amp` so that `amp` is something that can be interpreted as the mean of a discrete probability distribution. In this example we have also decided to ignore the contribution of the variance in the number of galaxies at fixed halo mass to the eventual power spectrum calculation.
 
+Note that the *covariance* in the mean profile amplitude between two different tracers is not currently supported. This can be important in halo-occupation models where galaxies are split into centrals and satellites and the presence of a satellite galaxy is conditional on the halo first containing a central galaxy. We hope to include this in future. Also any spatial variance or covariance in halo profiles at fixed mass is not currently supported; we have no plans to include this in future.
 
 ## Notebooks
-There are several jupyter notebooks in the `notebooks` folder giving examples of how to do your own halo-model predictions. The main one is `demo.ipynb`, which gives a run down of most of the features of our software package. As a bonus, we include the notebooks that produced (almost) all of the plots in the review paper.
-
-## License
-Copyright (c) 2023 Alexander Mead, Marika Asgari
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, 
-and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+There are several jupyter notebooks in the `notebooks` folder giving examples of how to do your own halo-model predictions. The main one is `demo.ipynb`, which gives a run down of most of the features of our software package. As a bonus, we include notebooks that produce (almost) all of the plots in the review paper.
 
 ## Citation
 Please add a citation to `Asgari, Mead & Heymans (2023)` if you use this code.
