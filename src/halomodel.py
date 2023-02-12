@@ -8,7 +8,6 @@ import utility as util
 import cosmology
 
 # To-do list
-# TODO: Dedicated test suite against HMcode/HMx for different cosmologies/halo models/redshifts
 # TODO: Add more checks for Dv, dc value compatability with mass functions
 # TODO: Add covariance between profile amplitudes (low priority; hard and annoying)
 
@@ -25,7 +24,6 @@ halo_integration = integrate.trapezoid
 #halo_integration = integrate.simps
 
 # W(k) integration scheme integration in r
-# TODO: Add FFTlog?
 #win_integration = integrate.trapezoid
 #win_integration = integrate.simps
 #win_integration = integrate.romb # Needs 2^m+1 (integer m) evenly-spaced samples in R
@@ -286,12 +284,11 @@ class model():
             eps = eps_deriv_mf; dR = R*eps # Uses numerical derivative
             dlnsigma2_dlnR = 2.*util.log_derivative(sigma, R, dR)
         else:
-            # TODO: It would be good to avoid loop with a vectorised function here
             dlnsigma2_dlnR = np.zeros(len(R))
             logR, logsigmaM = np.log(R), np.log(sigmaM)
-            for iR, _logR in enumerate(logR):
+            for iR, _logR in enumerate(logR): # TODO: It would be good to avoid loop with a vectorised function here
                 dlnsigma2_dlnR[iR] = 2.*util.derivative_from_samples(_logR, logR, logsigmaM)
-            #dlnsigma2_dlnR = 2.*util.derivative_from_samples(np.log(R), np.log(R), np.log(sigmas))
+            #dlnsigma2_dlnR = 2.*util.derivative_from_samples(np.log(R), np.log(R), np.log(sigmas)) # Does not work
         dnu_dlnm = -(nu/6.)*dlnsigma2_dlnR
         return self._mass_function_nu(nu)*dnu_dlnm
 
@@ -476,18 +473,6 @@ class model():
         '''
         from numpy import trapz
         integrand = np.zeros((len(nu), len(nu)))
-        # for iM1, nu1 in enumerate(nu):
-        #     for iM2, nu2 in enumerate(nu):
-        #         if iM2 >= iM1:
-        #             M1, M2 = M[iM1], M[iM2]
-        #             W1, W2 = Wu[iM1], Wv[iM2]
-        #             g1 = self._mass_function_nu(nu1)
-        #             g2 = self._mass_function_nu(nu2)
-        #             b1 = self._linear_bias_nu(nu1)
-        #             b2 = self._linear_bias_nu(nu2)
-        #             integrand[iM1, iM2] = beta[iM1, iM2]*W1*W2*g1*g2*b1*b2/(M1*M2)
-        #         else:
-        #             integrand[iM1, iM2] = integrand[iM2, iM1]
         W1W2 = np.outer(Wu, Wv)
         g1g2 = np.outer(self._mass_function_nu(nu), self._mass_function_nu(nu))
         b1b2 =  np.outer(self._linear_bias_nu(nu), self._linear_bias_nu(nu))
@@ -659,8 +644,6 @@ def _interpolate_beta_NL(k:np.ndarray, M:np.ndarray, M_small:np.ndarray, beta_NL
     '''
     Interpolate beta_NL from a small grid to a large grid for halo-model calculations.
     TODO: Remove inefficient loops?
-    TODO: Add more interesting extrapolations. Currently just nearest neighbour,
-    which means everything outside the range is set to the same value.
     '''
     from scipy.interpolate import interp2d
     beta_NL = np.zeros((len(k), len(M), len(M))) # Array for output
@@ -821,7 +804,7 @@ class profile():
 def _halo_window(k:float, M:float, rv:float, c:float, Prho:callable) -> float:
     '''
     Compute the halo window function via integration given a 'density' profile Prho(r) = 4*pi*r^2*rho(r)
-    TODO: This should almost certainly be done with a dedicated integration routine (FFTlog?)
+    TODO: This should almost certainly be done with a dedicated integration routine
     TODO: Can this be made to accept arrays of M, rv, c as arguments?
     '''
     from scipy.special import spherical_jn
