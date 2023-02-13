@@ -8,8 +8,8 @@ __pycache__/
 # VScode
 .vscode/
 
-# Test outputs
-halomodel/tests/results/*.dat
+# Tests
+tests/results/*.dat
 
 # Scrap
 notebooks/scrap.ipynb
