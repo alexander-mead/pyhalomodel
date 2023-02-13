@@ -6,9 +6,8 @@ import sys
 import camb
 
 # Projet imports
-sys.path.append('./../')
-import cosmology # TODO: Remove dependancy
-import halomodel
+sys.path.append('./../src')
+import halomodel as halo
 
 ### Parameters ###
 
@@ -42,9 +41,16 @@ nM = 129
 dc = 1.686
 Dv = 330.
 halo_definition = 'Mvir'
-halomodel_name = 'Tinker et al. (2010)'
 concentration_name = 'Duffy et al. (2008)'
 HOD_name = 'Zheng et al. (2005)'
+
+halomodel_names = {
+    'PS74': 'Press & Schecter (1974)',
+    'ST99': 'Sheth & Tormen (1999)',
+    'SMT01': 'Sheth, Mo & Tormen (2001)',
+    'Tinker2010': 'Tinker et al. (2010)',
+    'Despali2016': 'Despali et al. (2016)',
+}
 
 ### ###
 
@@ -91,51 +97,54 @@ sigma_8 = (camb_results.get_sigma8()[zs.index(0.)]).item()
 ks = np.logspace(np.log10(kmin), np.log10(kmax), nk)
 Ms = np.logspace(np.log10(Mmin), np.log10(Mmax), nM)
 
-# Loop over redshifts
-for z in zs:
+# Halo-model names
+for short_name, halomodel_name in halomodel_names.items():
 
-    # Initialise halo model
-    hmod = halomodel.halo_model(z, Omega_m, name=halomodel_name, Dv=Dv, dc=dc)
+    # Loop over redshifts
+    for z in zs:
 
-    # Halo mass range [Msun/h] and Lagrangian radii [Mpc/h] corresponding to halo masses
-    Rs = hmod.Lagrangian_radius(Ms)
-    sigmaRs = cosmology.sigmaR(Rs, camb_results, integration_type='camb')[zs.index(z)]
-    rvs = hmod.virial_radius(Ms)
-    cs = halomodel.concentration(Ms, z, method='Duffy et al. (2008)', halo_definition=halo_definition)
+        # Initialise halo model
+        hmod = halo.model(z, Omega_m, name=halomodel_name, Dv=Dv, dc=dc)
 
-    # Create matter profiles
-    matter_profile = halomodel.matter_profile(ks, Ms, rvs, cs, hmod.Om_m)
+        # Linear power
+        Pks_lin = Pk_lin(z, ks)
 
-    # Create galaxy profiles
-    N_cen, N_sat = halomodel.HOD_mean(Ms, method='Zheng et al. (2005)')
-    V_cen, V_sat, _ = halomodel.HOD_variance(N_cen, N_sat)
-    N_gal = N_cen+N_sat; V_gal = V_cen+V_sat
-    rho_gal = hmod.average(Ms, N_cen+N_gal, sigmas=sigmaRs)
-    nM, nk = len(Ms), len(ks)
-    Uk_gal = np.zeros((nM, nk))
-    for iM, (rv, c) in enumerate(zip(rvs, cs)):
-        Uk_gal[iM, :] = halomodel.halo_window_function(ks, rv, profile='isothermal')
-    galaxy_profile = halomodel.halo_profile(ks, Ms, N_gal, Uk_gal, rho_gal, var=None, discrete=True)
+        # Halo properties
+        Rs = hmod.Lagrangian_radius(Ms)
+        sigmaRs = camb_results.get_sigmaR(Rs, hubble_units=True, return_R_z=False)[[z].index(z)]
+        rvs = hmod.virial_radius(Ms)
+        cs = halo.concentration(Ms, z, method='Duffy et al. (2008)', halo_definition=halo_definition)
 
-    # Power-spectrum calculation
-    _, _, Pk = hmod.power_spectrum(ks, Ms, [matter_profile, galaxy_profile], lambda k: Pk_lin(z, k), sigmas=sigmaRs)
+        # Create matter profiles
+        matter_profile = halo.matter_profile(ks, Ms, rvs, cs, hmod.Om_m)
 
-    # Save results (matter-matter)
-    data = np.column_stack((ks, Pk[0, 0, :]))
-    outfile = 'benchmarks/power_mm_z%1.1f.dat'%(z)
-    with open(outfile, 'x') as f:
-        np.savetxt(f, data, header='k [h/Mpc]; P_mm(k) [(Mpc/h)^3]')
+        # Create galaxy profiles
+        N_cen, N_sat = halo.HOD_mean(Ms, method='Zheng et al. (2005)')
+        V_cen, V_sat, _ = halo.HOD_variance(N_cen, N_sat)
+        N_gal = N_cen+N_sat; V_gal = V_cen+V_sat
+        rho_gal = hmod.average(Ms, sigmaRs, N_cen+N_gal)
+        Uk_gal = halo.window_function(ks, rvs, profile='isothermal')
+        galaxy_profile = halo.profile.Fourier(ks, Ms, Uk_gal, amp=N_gal, norm=rho_gal, var=V_gal, discrete_tracer=True)
 
-    # Save results (matter-galaxy)
-    data = np.column_stack((ks, Pk[1, 1, :]))
-    outfile = 'benchmarks/power_gg_z%1.1f.dat'%(z)
-    with open(outfile, 'x') as f:
-        np.savetxt(f, data, header='k [h/Mpc]; P_mg(k) [(Mpc/h)^3]')
+        # Power-spectrum calculation
+        _, _, Pk = hmod.power_spectrum(ks, Pks_lin, Ms, sigmaRs, {'m': matter_profile, 'g': galaxy_profile})
 
-    # Save results (galaxy-galaxy)
-    data = np.column_stack((ks, Pk[0, 1, :]))
-    outfile = 'benchmarks/power_mg_z%1.1f.dat'%(z)
-    with open(outfile, 'x') as f:
-        np.savetxt(f, data, header='k [h/Mpc]; P_gg(k) [(Mpc/h)^3]')
+        # Save results (matter-matter)
+        data = np.column_stack((ks, Pk['m-m']))
+        outfile = 'benchmarks/power_mm_'+short_name+'_z%1.1f.dat'%(z)
+        with open(outfile, 'x') as f:
+            np.savetxt(f, data, header='k [h/Mpc]; P_mm(k) [(Mpc/h)^3]')
+
+        # Save results (matter-galaxy)
+        data = np.column_stack((ks, Pk['m-g']))
+        outfile = 'benchmarks/power_mg_'+short_name+'_z%1.1f.dat'%(z)
+        with open(outfile, 'x') as f:
+            np.savetxt(f, data, header='k [h/Mpc]; P_mg(k) [(Mpc/h)^3]')
+
+        # Save results (galaxy-galaxy)
+        data = np.column_stack((ks, Pk['g-g']))
+        outfile = 'benchmarks/power_gg_'+short_name+'_z%1.1f.dat'%(z)
+        with open(outfile, 'x') as f:
+            np.savetxt(f, data, header='k [h/Mpc]; P_gg(k) [(Mpc/h)^3]')
 
 ### ###
