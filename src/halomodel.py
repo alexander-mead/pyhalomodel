@@ -119,8 +119,10 @@ class model():
             Dv_array = np.array([200., 300., 400., 600., 800., 1200., 1600, 2400., 3200.])
             # Check Delta_v and delta_c values
             if Dv < Dv_array[0] or Dv > Dv_array[-1]:
+                print('Dv:', Dv)
                 warnings.warn('Dv is outside supported range for Tinker et al. (2010)', RuntimeWarning)
             if not isclose(dc, 1.686, rel_tol=dc_rel_tol):
+                print('dc:', dc)
                 warnings.warn('dc = 1.686 assumed in Tinker et al. (2010)', RuntimeWarning)
             # Mass function from Table 4
             logDv = np.log(self.Dv)

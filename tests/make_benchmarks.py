@@ -7,6 +7,7 @@ import camb
 
 # Projet imports
 sys.path.append('./../src')
+import cosmology
 import halomodel as halo
 
 ### Parameters ###
@@ -14,19 +15,20 @@ import halomodel as halo
 # Cosmological parameters
 Omega_c = 0.25
 Omega_b = 0.05
-Omega_k = 0.0
+Omega_k = 0.
 h = 0.7
 As = 2e-9
 ns = 0.96
-w = -1.0
-wa = 0.0
-m_nu = 0.0 # [eV]
+w = -1.
+wa = 0.
+m_nu = 0. # [eV]
 sigma_8_set = True
 sigma_8  = 0.8
 
 # Wavenumber range [h/Mpc]
 kmin = 1e-3; kmax = 1e1
 nk = 101
+ks = np.logspace(np.log10(kmin), np.log10(kmax), nk)
 
 # Redshifts
 zs = [4., 3., 2., 1., 0.5, 0.]
@@ -36,10 +38,9 @@ kmax_CAMB = 200. # Maximum wavenumber [h/Mpc]; should be larger than you actuall
 zmax_CAMB = 10.  # Maximum redshift; should be larger than you actually want
 
 # Halo model
-Mmin = 1e9; Mmax = 1e16
-nM = 129
-dc = 1.686
-Dv = 330.
+Mmin = 1e9; Mmax = 1e17
+nM = 256
+Ms = np.logspace(np.log10(Mmin), np.log10(Mmax), nM)
 halo_definition = 'Mvir'
 concentration_name = 'Duffy et al. (2008)'
 HOD_name = 'Zheng et al. (2005)'
@@ -93,10 +94,6 @@ sigma_8 = (camb_results.get_sigma8()[zs.index(0.)]).item()
 
 ### Halo model ###
 
-# Arrays of wavenumbers [h/Mpc] and halo masses [Msun/h]
-ks = np.logspace(np.log10(kmin), np.log10(kmax), nk)
-Ms = np.logspace(np.log10(Mmin), np.log10(Mmax), nM)
-
 # Halo-model names
 for short_name, halomodel_name in halomodel_names.items():
 
@@ -104,6 +101,9 @@ for short_name, halomodel_name in halomodel_names.items():
     for z in zs:
 
         # Initialise halo model
+        Om_mz = Omega_m*(1.+z)**3/(Omega_m*(1.+z)**3.+(1.-Omega_m))
+        dc = cosmology.dc_NakamuraSuto(Om_mz)
+        Dv = cosmology.Dv_BryanNorman(Om_mz)
         hmod = halo.model(z, Omega_m, name=halomodel_name, Dv=Dv, dc=dc)
 
         # Linear power
@@ -111,7 +111,7 @@ for short_name, halomodel_name in halomodel_names.items():
 
         # Halo properties
         Rs = hmod.Lagrangian_radius(Ms)
-        sigmaRs = camb_results.get_sigmaR(Rs, hubble_units=True, return_R_z=False)[[z].index(z)]
+        sigmaRs = camb_results.get_sigmaR(Rs, hubble_units=True, return_R_z=False)[zs.index(z)]
         rvs = hmod.virial_radius(Ms)
         cs = halo.concentration(Ms, z, method='Duffy et al. (2008)', halo_definition=halo_definition)
 

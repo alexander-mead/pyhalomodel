@@ -36,13 +36,18 @@ zmax_CAMB = 10.
 # Halo mass range [Msun/h]
 
 # Halo model
-Mmin = 1e9; Mmax = 1e16
-nM = 129
-dc = 1.686
-Dv = 330.
+Mmin = 1e9; Mmax = 1e17
+nM = 256
+Ms = np.logspace(np.log10(Mmin), np.log10(Mmax), nM)
 halo_definition = 'Mvir'
-halomodel_name = 'Tinker et al. (2010)'
 concentration_name = 'Duffy et al. (2008)'
+halomodel_names = {
+    'PS74': 'Press & Schecter (1974)',
+    'ST99': 'Sheth & Tormen (1999)',
+    'SMT01': 'Sheth, Mo & Tormen (2001)',
+    'Tinker2010': 'Tinker et al. (2010)',
+    'Despali2016': 'Despali et al. (2016)',
+}
 
 ### ###
 
@@ -81,49 +86,183 @@ Pk_lin = Pk_lin.P      # Single out the linear P(k) interpolator
 camb_results = camb.get_results(pars)
 sigma_8 = (camb_results.get_sigma8()[zs.index(0.)]).item()
 
+# Loop over halo models
+benchmarks_dict = {}; results_dict = {}
+for short_name, halomodel_name in halomodel_names.items():
+
+    # Loop over redshifts
+    benchmarks = []; results = []
+    for z in zs:
+
+        # Loop over spectra type
+        datas = {}
+        for thing in ['mm', 'mg', 'gg']:
+            file = 'power_'+thing+'_'+short_name+'_z%1.1f.dat'%(z)
+            infile = 'benchmarks/'+file
+            data = np.loadtxt(infile)
+            ks = data[:, 0] # Wavenumbers
+            datas[thing] = data[:, 1] # Power
+        benchmark = np.column_stack((ks, datas['mm'], datas['mg'], datas['gg']))
+        benchmarks.append(benchmark)
+        ks = benchmark[:, 0]
+        Pks_lin = Pk_lin(z, ks)
+
+        # Initialise halo model
+        Omega_mz = Omega_m*(1.+z)**3/(Omega_m*(1.+z)**3.+(1.-Omega_m))
+        dc = cosmology.dc_NakamuraSuto(Omega_mz)
+        Dv = cosmology.Dv_BryanNorman(Omega_mz)
+        hmod = halo.model(z, Omega_m, name=halomodel_name, Dv=Dv, dc=dc)
+
+        # Halo properties
+        Rs = hmod.Lagrangian_radius(Ms)
+        sigmaRs = camb_results.get_sigmaR(Rs, hubble_units=True, return_R_z=False)[zs.index(z)]
+        rvs = hmod.virial_radius(Ms)
+        cs = halo.concentration(Ms, z, halo_definition=halo_definition)
+
+        # Create a matter profile
+        matter_profile = halo.matter_profile(ks, Ms, rvs, cs, hmod.Om_m)
+
+        # Create galaxy profiles
+        N_cen, N_sat = halo.HOD_mean(Ms, method='Zheng et al. (2005)')
+        V_cen, V_sat, _ = halo.HOD_variance(N_cen, N_sat)
+        N_gal = N_cen+N_sat; V_gal = V_cen+V_sat
+        rho_gal = hmod.average(Ms, sigmaRs, N_cen+N_gal)
+        Uk_gal = halo.window_function(ks, rvs, profile='isothermal')
+        galaxy_profile = halo.profile.Fourier(ks, Ms, Uk_gal, amp=N_gal, norm=rho_gal, var=V_gal, discrete_tracer=True)
+
+        # Power spectrum calculation
+        _, _, Pk = hmod.power_spectrum(ks, Pks_lin, Ms, sigmaRs, {'m': matter_profile, 'g': galaxy_profile})
+
+        # Save data
+        stuff = []
+        for thing1, thing2 in zip(['mm', 'mg', 'gg'], ['m-m', 'm-g', 'g-g']):
+            file = 'power_'+thing1+'_'+short_name+'_z%1.1f.dat'%(z)
+            outfile = 'results/'+file
+            result = np.column_stack((ks, Pk[thing2]))
+            np.savetxt(outfile, result, header='k [h/Mpc]; P_'+thing1+'(k) [(Mpc/h)^3]')
+            stuff.append(Pk[thing2])
+        result = np.column_stack((ks, *stuff))
+        results.append(result)
+
+    # Add to dictionaries
+    benchmarks_dict[halomodel_name] = benchmarks
+    results_dict[halomodel_name] = results
+
 ### ###
 
 class TestPower(unittest.TestCase):
 
-    # Power-spectrum calculation
+    # matter-matter
+    n = 1
+
+    # PS '74
     @staticmethod
-    def test_power():
+    def test_mm_PS74():
+        name = 'Press & Schecter (1974)'; n = 1
+        for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
+            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=4)
 
-        # Array of halo masses [Msun/h]
-        Ms = np.logspace(np.log10(Mmin), np.log10(Mmax), nM)
+    # ST '99
+    @staticmethod
+    def test_mm_ST99():
+        name = 'Sheth & Tormen (1999)'; n = 1
+        for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
+            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=4)
 
-        # Loop over redshifts
-        for z in zs:
+    # SMT '01
+    @staticmethod
+    def test_mm_SMT01():
+        name = 'Sheth, Mo & Tormen (2001)'; n = 1
+        for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
+            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=4)
 
-            # Read benchmark
-            infile = 'benchmarks/power_mm_z%1.1f.dat'%(z)
-            benchmark = np.loadtxt(infile)
-            ks = benchmark[:, 0]
-            Pks_lin = Pk_lin(z, ks)
+    # Tinker '10
+    @staticmethod
+    def test_mm_Tinker2010():
+        name = 'Tinker et al. (2010)'; n = 1
+        for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
+            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=4)
 
-            # Initialise halo model
-            hmod = halo.model(z, Omega_m, name=halomodel_name, Dv=Dv, dc=dc)
+    # Despali '16
+    @staticmethod
+    def test_mm_Despali2016():
+        name = 'Despali et al. (2016)'; n = 1
+        for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
+            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=4)
 
-            # Halo mass range [Msun/h] and Lagrangian radii [Mpc/h] corresponding to halo masses
-            Rs = hmod.Lagrangian_radius(Ms)
-            sigmaRs = cosmology.sigmaR(Rs, camb_results, integration_type='camb')[zs.index(z)]
-            rvs = hmod.virial_radius(Ms)
-            cs = halo.concentration(Ms, z, halo_definition=halo_definition)
+    # matter-galaxy
 
-            # Create a matter profile
-            matter_profile = halo.matter_profile(ks, Ms, rvs, cs, hmod.Om_m)
+    # PS '74
+    @staticmethod
+    def test_mg_PS74():
+        name = 'Press & Schecter (1974)'; n = 2
+        for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
+            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=4)
 
-            # Power spectrum calculation
-            _, _, Pk = hmod.power_spectrum(ks, Pks_lin, Ms, sigmaRs, {'m': matter_profile})
+    # ST '99
+    @staticmethod
+    def test_mg_ST99():
+        name = 'Sheth & Tormen (1999)'; n = 2
+        for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
+            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=4)
 
-            # Save data
-            outfile = 'results/power_mm_z%1.1f.dat'%(z)
-            data = np.column_stack((ks, Pk['m-m']))
-            np.savetxt(outfile, data, header='k [h/Mpc]; P(k) [(Mpc/h)^3]')
+    # SMT '01
+    @staticmethod
+    def test_mg_SMT01():
+        name = 'Sheth, Mo & Tormen (2001)'; n = 2
+        for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
+            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=4)
 
-            # Carry out test
-            # TODO: Do assertion only after creating data
-            np.testing.assert_array_almost_equal(Pk['m-m']/benchmark[:, 1], 1., decimal=4)
+    # Tinker '10
+    @staticmethod
+    def test_mg_Tinker2010():
+        name = 'Tinker et al. (2010)'; n = 2
+        for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
+            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=4)
+
+    # Despali '16
+    @staticmethod
+    def test_mg_Despali2016():
+        name = 'Despali et al. (2016)'; n = 2
+        for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
+            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=4)
+
+    # galaxy-galaxy
+
+    # PS '74
+    @staticmethod
+    def test_gg_PS74():
+        name = 'Press & Schecter (1974)'; n = 3
+        for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
+            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=4)
+
+    # ST '99
+    @staticmethod
+    def test_gg_ST99():
+        name = 'Sheth & Tormen (1999)'; n = 3
+        for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
+            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=4)
+
+    # SMT '01
+    @staticmethod
+    def test_gg_SMT01():
+        name = 'Sheth, Mo & Tormen (2001)'; n = 3
+        for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
+            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=4)
+
+    # Tinker '10
+    @staticmethod
+    def test_gg_Tinker2010():
+        name = 'Tinker et al. (2010)'; n = 3
+        for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
+            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=4)
+
+    # Despali '16
+    @staticmethod
+    def test_gg_Despali2016():
+        name = 'Despali et al. (2016)'; n = 3
+        for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
+            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=4)
 
 ### ###
 
