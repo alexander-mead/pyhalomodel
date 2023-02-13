@@ -178,12 +178,10 @@ class model():
         print('Parameters:')
         if self.name in ['Press & Schecter (1974']:
             print('None')
-        elif self.name in ['Sheth & Tormen (1999)', 'Sheth, Mo & Tormen (2001)']:
+        elif self.name in ['Sheth & Tormen (1999)', 'Sheth, Mo & Tormen (2001)', 'Despali et al. (2016)']:
             print('p: %1.3f; q: %1.3f; A: %1.4f'%(self.p_ST, self.q_ST, self.A_ST))
             if self.name in ['Sheth, Mo & Tormen (2001)']:
                 print('a: %1.3f; b: %1.3f; c: %1.3f'%(self.a_SMT, self.b_SMT, self.c_SMT))
-        elif self.name in ['Despali et al. (2016)']:
-            print('p: %1.3f; q: %1.3f; A: %1.4f'%(self.p, self.q, self.A_ST))
         elif self.name in ['Tinker et al. (2010)']:
             print('alpha: %1.3f; beta: %1.3f; gamma: %1.3f; phi: %1.3f; eta: %1.3f'
                 %(self.alpha_Tinker, self.beta_Tinker, self.gamma_Tinker, self.phi_Tinker, self.eta_Tinker))
