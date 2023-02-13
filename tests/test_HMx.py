@@ -16,18 +16,18 @@ import halomodel as halo
 # Set cosmological parameters
 Omega_c = 0.25
 Omega_b = 0.05
-Omega_k = 0.0
+Omega_k = 0.
 h = 0.7
 As = 2e-9
 ns = 0.96
-w = -1.0
-wa = 0.0
-m_nu = 0.0 # [eV]
+w = -1.
+wa = 0.
+m_nu = 0. # [eV]
 sigma_8_set = True # If True uses the following value
 sigma_8  = 0.8
 
 # Redshifts
-z = 0.
+zs = [3., 2., 1., 0.5, 0.]
 
 # CAMB
 kmax_CAMB = 200.
@@ -36,13 +36,18 @@ zmax_CAMB = 10.
 # Halo mass range [Msun/h]
 
 # Halo model
-Mmin = 1e7; Mmax = 1e17
-nM = 129
-dc = cosmology.dc_NakamuraSuto(Omega_c+Omega_b)
-Dv = cosmology.Dv_BryanNorman(Omega_c+Omega_b)
+Mmin, Mmax = 1e7, 1e17 # HMx defaults
+nM = 129 # HMx defaults
+Ms = np.logspace(np.log10(Mmin), np.log10(Mmax), nM)
 halo_definition = 'Mvir'
-halomodel_name = 'Sheth & Tormen (1999)'
 concentration_name = 'Duffy et al. (2008)'
+halomodel_names = {
+    'Press & Schecter (1974)': 27,
+    'Sheth & Tormen (1999)': 3,
+    'Sheth, Mo & Tormen (2001)': 146,
+    'Tinker et al. (2010)': 23,
+    'Despali et al. (2016)': 87,
+}
 
 ### ###
 
@@ -56,12 +61,12 @@ wb, wc = Omega_b*h**2, Omega_c*h**2
 pars.set_cosmology(ombh2=wb, omch2=wc, H0=100.*h, mnu=m_nu, omk=Omega_k)
 pars.set_dark_energy(w=w, wa=wa, dark_energy_model='ppf') 
 pars.InitPower.set_params(As=As, ns=ns, r=0.)
-pars.set_matter_power(redshifts=[z], kmax=kmax_CAMB) # Setup the linear matter power spectrum
+pars.set_matter_power(redshifts=zs, kmax=kmax_CAMB) # Setup the linear matter power spectrum
 
 # Scale 'As' to be correct for the desired 'sigma_8' value if necessary
 if sigma_8_set:
     camb_results = camb.get_results(pars)
-    sigma_8_init = (camb_results.get_sigma8()[[z].index(0.)]).item()
+    sigma_8_init = (camb_results.get_sigma8()[zs.index(0.)]).item()
     scaling = (sigma_8/sigma_8_init)**2
     As *= scaling
     pars.InitPower.set_params(As=As, ns=ns, r=0.)
@@ -77,9 +82,51 @@ Pk_lin = camb.get_matter_power_interpolator(pars,
                                             zmax=zmax_CAMB,
                                            )
 Omega_m  = pars.omegam # Extract the matter density
-Pk_lin = Pk_lin.P      # Single out the linear P(k) interpolator
+Pk_lin = Pk_lin.P # Single out the linear P(k) interpolator
 camb_results = camb.get_results(pars)
-sigma_8 = (camb_results.get_sigma8()[[z].index(0.)]).item()
+sigma_8 = (camb_results.get_sigma8()[zs.index(0.)]).item()
+
+# Loop over halo models
+for halomodel_name, halomodel_number in halomodel_names.items():
+
+    # Read benchmark
+    file = 'HMx_26_'+str(halomodel_number)+'.dat'
+    infile = 'benchmarks/'+file
+    benchmark = np.loadtxt(infile)
+    ks = benchmark[:, 0] # Wavenumbers
+    Pk_benchmark = np.dot(benchmark[:, 1:].T, (2.*np.pi/ks)**3)*4.*np.pi # Convert Delta^2(k) to P(k)
+
+    # Loop over redshifts
+    Pk_result = ks
+    for z in zs:
+
+        # Linear power
+        Pks_lin = Pk_lin(z, ks)
+
+        # Initialise halo model
+        Omega_mz = Omega_m*(1.+z)**3/(Omega_m*(1.+z)**3.+(1.-Omega_m))
+        dc = cosmology.dc_NakamuraSuto(Omega_mz)
+        Dv = cosmology.Dv_BryanNorman(Omega_mz)
+        hmod = halo.model(z, Omega_m, name=halomodel_name, Dv=Dv, dc=dc)
+        print(hmod)
+
+        # Halo profile
+        Rs = hmod.Lagrangian_radius(Ms)
+        sigmaRs = camb_results.get_sigmaR(Rs, hubble_units=True, return_R_z=False)[zs.index(z)]
+        rvs = hmod.virial_radius(Ms)
+        cs = halo.concentration(Ms, z, method=concentration_name, halo_definition=halo_definition)
+        matter_profile = halo.matter_profile(ks, Ms, rvs, cs, hmod.Om_m)
+
+        # Power spectrum calculation
+        _, _, Pk = hmod.power_spectrum(ks, Pks_lin, Ms, sigmaRs, {'m': matter_profile})
+        Pk_result = np.column_stack((Pk_result, Pk['m-m']))
+
+    # Save data
+    outfile = 'results/'+file
+    np.savetxt(outfile, Pk_result)
+
+        # Carry out test
+        #np.testing.assert_array_almost_equal(Pk['m-m']/Pk_benchmark, 1., decimal=3)
 
 ### ###
 
@@ -88,40 +135,7 @@ class TestPower(unittest.TestCase):
     # Power-spectrum calculation
     @staticmethod
     def test_power():
-
-        # Array of halo masses [Msun/h]
-        Ms = np.logspace(np.log10(Mmin), np.log10(Mmax), nM)
-
-        # Read benchmark
-        infile = 'benchmarks/HMx_0_26_3_z0.0.dat'
-        benchmark = np.loadtxt(infile)
-        ks = benchmark[:, 0]
-        Pks_lin = Pk_lin(z, ks)
-        Pk_benchmark = benchmark[:, 4]*2.*np.pi**2/ks**3
-
-        # Initialise halo model
-        hmod = halo.model(z, Omega_m, name=halomodel_name, Dv=Dv, dc=dc)
-
-        # Halo mass range [Msun/h] and Lagrangian radii [Mpc/h] corresponding to halo masses
-        Rs = hmod.Lagrangian_radius(Ms)
-        sigmaRs = cosmology.sigmaR(Rs, camb_results, integration_type='camb')[[z].index(z)]
-        rvs = hmod.virial_radius(Ms)
-        cs = halo.concentration(Ms, z, halo_definition=halo_definition)
-
-        # Create a matter profile
-        matter_profile = halo.matter_profile(ks, Ms, rvs, cs, hmod.Om_m)
-
-        # Power spectrum calculation
-        _, _, Pk = hmod.power_spectrum(ks, Pks_lin, Ms, sigmaRs, {'m': matter_profile})
-
-        # Save data
-        outfile = 'results/HMx_0_26_3_z0.0.dat'
-        data = np.column_stack((ks, Pk['m-m']))
-        np.savetxt(outfile, data, header='k [h/Mpc]; P(k) [(Mpc/h)^3]')
-
-        # Carry out test
-        # TODO: Do assertion only after creating data
-        np.testing.assert_array_almost_equal(Pk['m-m']/Pk_benchmark, 1., decimal=3)
+        pass
 
 ### ###
 

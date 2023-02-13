@@ -96,12 +96,12 @@ for short_name, halomodel_name in halomodel_names.items():
 
         # Loop over spectra type
         datas = {}
-        for thing in ['mm', 'mg', 'gg']:
-            file = 'power_'+thing+'_'+short_name+'_z%1.1f.dat'%(z)
+        for spectrum in ['mm', 'mg', 'gg']:
+            file = 'power_'+spectrum+'_'+short_name+'_z%1.1f.dat'%(z)
             infile = 'benchmarks/'+file
             data = np.loadtxt(infile)
             ks = data[:, 0] # Wavenumbers
-            datas[thing] = data[:, 1] # Power
+            datas[spectrum] = data[:, 1] # Power
         benchmark = np.column_stack((ks, datas['mm'], datas['mg'], datas['gg']))
         benchmarks.append(benchmark)
         ks = benchmark[:, 0]
