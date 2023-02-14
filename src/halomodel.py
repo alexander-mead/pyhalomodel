@@ -1,6 +1,7 @@
 # Standard imports
 import numpy as np
 import scipy.integrate as integrate
+from scipy.interpolate import interp1d as interp
 import warnings
 
 # Project imports
@@ -118,11 +119,11 @@ class model():
             from math import isclose
             Dv_array = np.array([200., 300., 400., 600., 800., 1200., 1600, 2400., 3200.])
             # Check Delta_v and delta_c values
-            if Dv < Dv_array[0] or Dv > Dv_array[-1]:
-                print('Dv:', Dv)
+            if (Dv < Dv_array[0]) or (Dv > Dv_array[-1]):
+                print('Dv:', Dv) # TODO: Convert to value error?
                 warnings.warn('Dv is outside supported range for Tinker et al. (2010)', RuntimeWarning)
             if not isclose(dc, 1.686, rel_tol=dc_rel_tol):
-                print('dc:', dc)
+                print('dc:', dc) # TODO: Convert to value error?
                 warnings.warn('dc = 1.686 assumed in Tinker et al. (2010)', RuntimeWarning)
             # Mass function from Table 4
             logDv = np.log(self.Dv)
@@ -132,11 +133,11 @@ class model():
             gamma_array = np.array([0.864, 0.922, 0.987, 1.09, 1.20, 1.34, 1.50, 1.68, 1.81])
             phi_array = np.array([-0.729, -0.789, -0.910, -1.05, -1.20, -1.26, -1.45, -1.50, -1.49])
             eta_array = np.array([-0.243, -0.261, -0.261, -0.273, -0.278, -0.301, -0.301, -0.319, -0.336])
-            alpha = np.interp(logDv, logDv_array, alpha_array)
-            beta = np.interp(logDv, logDv_array, beta_array)
-            gamma = np.interp(logDv, logDv_array, gamma_array)
-            phi = np.interp(logDv, logDv_array, phi_array)
-            eta = np.interp(logDv, logDv_array, eta_array)
+            alpha = interp(logDv_array, alpha_array, fill_value='extrapolate')(logDv) # Linear interpolation
+            beta = interp(logDv_array, beta_array, fill_value='extrapolate')(logDv)
+            gamma = interp(logDv_array, gamma_array, fill_value='extrapolate')(logDv)
+            phi = interp(logDv_array, phi_array, fill_value='extrapolate')(logDv)
+            eta = interp(logDv_array, eta_array, fill_value='extrapolate')(logDv)
             if Tinker_z_dep: # Redshift dependence from equations (9-12); only calibrated for M200
                 beta *= (1.+z)**0.20
                 gamma *= (1.+z)**-0.01
@@ -175,10 +176,9 @@ class model():
         print('Omega_m(z=0): %1.3f'%(self.Om_m))
         print('delta_c: %1.4f'%(self.dc))
         print('Delta_v: %4.1f'%(self.Dv))
-        print('Parameters:')
-        if self.name in ['Press & Schecter (1974']:
-            print('None')
-        elif self.name in ['Sheth & Tormen (1999)', 'Sheth, Mo & Tormen (2001)', 'Despali et al. (2016)']:
+        if self.name != 'Press & Schecter (1974)':
+            print('Parameters:')
+        if self.name in ['Sheth & Tormen (1999)', 'Sheth, Mo & Tormen (2001)', 'Despali et al. (2016)']:
             print('p: %1.3f; q: %1.3f; A: %1.4f'%(self.p_ST, self.q_ST, self.A_ST))
             if self.name in ['Sheth, Mo & Tormen (2001)']:
                 print('a: %1.3f; b: %1.3f; c: %1.3f'%(self.a_SMT, self.b_SMT, self.c_SMT))
@@ -322,6 +322,7 @@ class model():
             <M> = rho: The mean matter density in the universe
             <M/rho> = 1: over all halo mass (equivalent to int g(nu)dnu = 1)
             <M^2/rho> = M_NL: non-linear halo mass that maximall contributes to one-halo term (not M*)
+            <(M/rho)^2> = P_1h(k->0): amplitude of the one-halo term in the matter-matter spectrum [(Mpc/h)^3]
             <b(M)M/rho> = 1: over all halo mass (equivalent to int g(nu)b(nu)dnu = 1)
             <N(M)> = rhog: with N the number of galaxies in each halo of mass M; gives mean number density of galaxies, rhog
             <b(M)N(M)>/<N(M)> = bg: with N the number of galaxies in each halo of mass M; gives mean bias of galaxies, bg
@@ -330,6 +331,7 @@ class model():
             sigmaM(M): Standard deviation in overdensity on mass scale M
             fs(M): Array of function to calculate mean density of (same length as M)
         '''
+        if not util.is_array_monotonic(M): raise ValueError('Halo mass array must be increasing monotonically')
         nu = self._peak_height(M, sigmaM)
         integrand = (f/M)*self._mass_function_nu(nu)
         return halo_integration(integrand, nu)*self.rhom
@@ -356,6 +358,7 @@ class model():
         t1 = time() # Initial time
 
         # Checks
+        if not util.is_array_monotonic(M): raise ValueError('Halo mass array must be increasing monotonically')
         if not isinstance(profiles, dict): raise TypeError('profiles must be a dictionary')
         for profile in profiles.values():
             if (k != profile.k).all(): raise ValueError('k arrays must all be identical to those in profiles')
@@ -514,8 +517,8 @@ class model():
         t1 = time() # Initial time
 
         # Checks
-        #if type(profiles) != dict: raise TypeError('profiles must be supplied as a dictionary')
         if not isinstance(profiles, dict): raise TypeError('profiles must be a dictionary')
+        if not util.is_array_monotonic(M): raise ValueError('Halo mass array must be increasing monotonically')
         for profile in profiles:
             if (k != profile.k).all(): raise ValueError('k arrays must all be identical to those in profiles')
             if (M != profile.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
