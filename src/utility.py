@@ -1,8 +1,6 @@
 # Standard imports
 import numpy as np
 
-### General ###
-
 def log_derivative(f:callable, x:float, dx=1e-3):
     '''
     Calculate the logarithmic derivative of f(x) at the point x: dln(f)/dln(x)
@@ -66,5 +64,10 @@ def find_closest_index_value(x:float, xs:np.array):
     idx = (np.abs(xs-x)).argmin()
     return idx, xs[idx]
 
-### ###
+
+def is_array_monotonic(x:np.array):
+    '''
+    Returns True iff the array contains monotonically increasing values
+    '''
+    return np.all(np.diff(x) > 0.)
 
