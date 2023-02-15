@@ -1,12 +1,10 @@
 # Standard imports
 import numpy as np
-import sys
 import unittest
 
 # Projet imports
-sys.path.append('./../pyhalomodel')
-import cosmology
-import camb_stuff
+import pyhalomodel.common.cosmology as cosmology
+import pyhalomodel.common.camb_stuff as camb_stuff
 import pyhalomodel as halo
 
 ### Parameters ###

@@ -6,9 +6,12 @@ import warnings
 from dark_emulator import darkemu
 
 # My imports
-import constants as const
-import utility as util
-import cosmology as cosm
+# import constants as const
+# import utility as util
+# import cosmology as cosm
+from . import constants as const
+from . import utility as util
+from . import cosmology as cosm
 
 # Constants
 dc = 1.686      # Collapse threshold for nu definition

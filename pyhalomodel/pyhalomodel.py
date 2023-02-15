@@ -5,8 +5,8 @@ from scipy.interpolate import interp1d as interp
 import warnings
 
 # Project imports
-import utility as util
-import cosmology
+import pyhalomodel.common.utility as util
+import pyhalomodel.common.cosmology as cosmology
 
 # To-do list
 # TODO: Add more checks for Dv, dc value compatability with mass functions
@@ -279,17 +279,17 @@ class model():
         nu = self._peak_height(M, sigmaM, sigma, Pk_lin) # TODO: Remove sigma and Pk_lin as arguments
         R = self.Lagrangian_radius(M)
         if Pk_lin is not None:
-            dlnsigma2_dlnR = cosmology.dlnsigma2_dlnR(R, Pk_lin)
+            deriv = cosmology.dlnsigma2_dlnR(R, Pk_lin)
         elif sigma is not None:
             eps = eps_deriv_mf; dR = R*eps # Uses numerical derivative
-            dlnsigma2_dlnR = 2.*util.log_derivative(sigma, R, dR)
+            deriv = 2.*util.log_derivative(sigma, R, dR)
         else:
-            dlnsigma2_dlnR = np.zeros(len(R))
+            deriv = np.zeros(len(R))
             logR, logsigmaM = np.log(R), np.log(sigmaM)
             for iR, _logR in enumerate(logR): # TODO: It would be good to avoid loop with a vectorised function here
-                dlnsigma2_dlnR[iR] = 2.*util.derivative_from_samples(_logR, logR, logsigmaM)
+                deriv[iR] = 2.*util.derivative_from_samples(_logR, logR, logsigmaM)
             #dlnsigma2_dlnR = 2.*util.derivative_from_samples(np.log(R), np.log(R), np.log(sigmas)) # Does not work
-        dnu_dlnm = -(nu/6.)*dlnsigma2_dlnR
+        dnu_dlnm = -(nu/6.)*deriv
         return self._mass_function_nu(nu)*dnu_dlnm
 
 
@@ -833,9 +833,11 @@ def _halo_window(k:float, M:float, rv:float, c:float, Prho:callable) -> float:
     return Wk
 
 
-def Prho(r:float, M:float, rv:float, c:float, name=None) -> np.ndarray:
+def differential_profile(r:float, M:float, rv:float, c:float, name=None) -> np.ndarray:
     '''
-    Profile (density/emissivity) of a halo multiplied by 4pir^2
+    Differential halo profile as a function of radius from the halo centre
+    Integrating this against r, from 0 to rv, gives the total contribution from the halo
+    This is the density/emissivity profile of a halo multiplied by 4pir^2
     Defined to avoid infinities when evaluated at r=0
     Args:
         r: Comoving radius from halo centre [Mpc/h]
@@ -847,9 +849,9 @@ def Prho(r:float, M:float, rv:float, c:float, name=None) -> np.ndarray:
             'NFW': Nevarro, Frenk & White (1997)
     '''
     if name == 'isothermal':
-        Prho = _Prho_isothermal(r, M, rv)
+        Prho = _differential_profile_isothermal(r, M, rv)
     elif name == 'NFW':
-        Prho = _Prho_NFW(r, M, rv, c)
+        Prho = _differential_profile_NFW(r, M, rv, c)
     else:
         raise ValueError('Halo profile not recognised')
     return Prho
@@ -875,14 +877,14 @@ def Prho(r:float, M:float, rv:float, c:float, name=None) -> np.ndarray:
 #     '''
 #     return Prho(r, rv, M, *args)/(4.*np.pi*r**2)
 
-def _Prho_isothermal(_, M, rv):
+def _differential_profile_isothermal(_, M, rv):
     '''
     Isothermal density profile multiplied by 4*pi*r^2
     '''
     return M/rv
 
 
-def _Prho_NFW(r, M, rv, c):
+def _differential_profile_NFW(r, M, rv, c):
     '''
     NFW density profile multiplied by 4*pi*r^2
     '''

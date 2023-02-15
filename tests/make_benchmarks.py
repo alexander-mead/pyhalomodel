@@ -1,13 +1,11 @@
 # Standard imports
 import numpy as np
-import sys
 
 # Third-party imports
 import camb
 
-# Projet imports
-sys.path.append('./../pyhalomodel')
-import cosmology
+# Project imports
+import pyhalomodel.common.cosmology as cosmology
 import pyhalomodel as halo
 
 ### Parameters ###

@@ -3,7 +3,7 @@ import numpy as np
 import scipy.integrate as integrate
 
 # Project imports
-import constants as const
+from . import constants as const
 
 # To-do list
 # TODO: Remove commented-out stuff
