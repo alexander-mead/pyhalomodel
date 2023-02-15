@@ -3,8 +3,8 @@ import numpy as np
 import unittest
 
 # Projet imports
-import pyhalomodel.common.cosmology as cosmology
-import pyhalomodel.common.camb_stuff as camb_stuff
+import pyhalomodel.cosmology as cosmology
+import pyhalomodel.camb_stuff as camb_stuff
 import pyhalomodel as halo
 
 ### Parameters ###

@@ -5,7 +5,7 @@ import numpy as np
 import camb
 
 # Project imports
-import pyhalomodel.common.cosmology as cosmology
+import pyhalomodel.cosmology as cosmology
 import pyhalomodel as halo
 
 ### Parameters ###

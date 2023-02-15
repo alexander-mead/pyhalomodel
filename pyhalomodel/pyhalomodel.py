@@ -5,8 +5,8 @@ from scipy.interpolate import interp1d as interp
 import warnings
 
 # Project imports
-import pyhalomodel.common.utility as util
-import pyhalomodel.common.cosmology as cosmology
+import pyhalomodel.utility as util
+import pyhalomodel.cosmology as cosmology
 
 # To-do list
 # TODO: Add more checks for Dv, dc value compatability with mass functions
