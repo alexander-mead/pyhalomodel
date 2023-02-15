@@ -4,10 +4,10 @@ import sys
 import unittest
 
 # Projet imports
-sys.path.append('./../src')
+sys.path.append('./../pyhalomodel')
 import cosmology
 import camb_stuff
-import halomodel as halo
+import pyhalomodel as halo
 
 ### Parameters ###
 
@@ -20,7 +20,7 @@ ns = 0.96
 sigma_8  = 0.8
 
 # Redshifts
-zs = [4., 3., 2., 1., 0.5, 0.]
+zs = [3., 2., 1., 0.5, 0.]
 
 # Halo mass range [Msun/h]
 

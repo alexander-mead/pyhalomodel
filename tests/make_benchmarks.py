@@ -6,9 +6,9 @@ import sys
 import camb
 
 # Projet imports
-sys.path.append('./../src')
+sys.path.append('./../pyhalomodel')
 import cosmology
-import halomodel as halo
+import pyhalomodel as halo
 
 ### Parameters ###
 
@@ -31,7 +31,7 @@ nk = 101
 ks = np.logspace(np.log10(kmin), np.log10(kmax), nk)
 
 # Redshifts
-zs = [4., 3., 2., 1., 0.5, 0.]
+zs = [3., 2., 1., 0.5, 0.]
 
 # CAMB
 kmax_CAMB = 200. # Maximum wavenumber [h/Mpc]; should be larger than you actually want

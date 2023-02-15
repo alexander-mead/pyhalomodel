@@ -4,10 +4,10 @@ import sys
 import unittest
 
 # Projet imports
-sys.path.append('./../src')
+sys.path.append('./../pyhalomodel')
 import cosmology
 import camb_stuff
-import halomodel as halo
+import pyhalomodel as halo
 
 ### Parameters ###
 
