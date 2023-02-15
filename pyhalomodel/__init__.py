@@ -1,2 +1,9 @@
-from .pyhalomodel import model, profile, \
-    interpolate_beta_NL, differential_profile, window_function, matter_profile, concentration, HOD_mean, HOD_variance
+from .pyhalomodel import model
+from .pyhalomodel import profile
+from .pyhalomodel import interpolate_beta_NL
+from .pyhalomodel import differential_profile
+from .pyhalomodel import window_function
+from .pyhalomodel import matter_profile
+from .pyhalomodel import concentration
+from .pyhalomodel import HOD_mean
+from .pyhalomodel import HOD_variance

@@ -1,16 +1,20 @@
 # Halo model
-This repository is home to the code that comes with with halo-model review paper of `Asgari, Mead & Heymans (2023)`. The software is written entirely in *python*, with extendability and reusability in mind. The purpose of this software is to take some of the drudgery out of performing basic calculations using the halo model. While the integrals that the halo model requires the researcher to evaluate are simple, in practice the changes of variables required to integrate halo profiles against halo mass functions can be confusing and tedious. In our experience this confusion has led to bugs and misunderstandings over the years, and our hope for this software is to reduce the proliferation of these somewhat. Our software can produce power spectra for *any* combinations of tracers, and simply requires halo profiles for the tracers to be specified. These could be matter profiles, galaxy profiles, or anything else, for example electron-pressure profiles (which pertain to the thermal Sunyaev-Zel`dovich effect).
+This repository is home to the `pyhalomodel` code that comes with with halo-model review paper of `Asgari, Mead & Heymans (2023)`. The software is written entirely in *python*, with extendability and reusability in mind. The purpose of this software is to take some of the drudgery out of performing basic calculations using the halo model. While the integrals that the halo model requires the researcher to evaluate are simple, in practice the changes of variables required to integrate halo profiles against halo mass functions can be confusing and tedious. In our experience this confusion has led to bugs and misunderstandings over the years, and our hope for this software is to reduce the proliferation of these somewhat. Our software can produce power spectra for *any* combinations of tracers, and simply requires halo profiles for the tracers to be specified. These could be matter profiles, galaxy profiles, or anything else, for example electron-pressure profiles (which pertain to the thermal Sunyaev-Zel`dovich effect).
 
 ## Dependencies
 * `numpy`
 * `scipy`
 
 ## Installation
-Simply clone the repository. You can then create an environment with all necessary dependencies using [poetry](https://python-poetry.org/):
+For the general user, `pyhalomodel` can be installed using `pip`:
 ```
-poetry install --no-root
+pip install pyhalomodel
 ```
-the `--no-root` option is required because the code is not currently installed as a global package, instead one simply uses the library via `import halomodel` with the `/src` folder of the repository included in the `$PYTHONPATH` (see the notebooks for examples). Ensure you are working in the environment created by poetry when you do this.
+If you think you might want to modify the source, then simply clone the repository. You can then create an environment with all necessary dependencies using [poetry](https://python-poetry.org/). From the `pyhalomodel` directory:
+```
+poetry install
+```
+which will automatically create an environment with the necessary dependencies.
 
 You can also install without `poetry`, either system wide or using another environment manager. We include a `requirements.txt` for those that need it.
 
@@ -18,13 +22,13 @@ You can also install without `poetry`, either system wide or using another envir
 Start a script with
 ```
 import numpy
-import halomodel as halo
+import pyhalomodel as halo
 ```
-ensuring that `halomodel.py` is visible to your `path`. Importing via `import halomodel as halo` is nice because the functions then have nice names. To make non-linear power spectrum predictions using the halo model requires a linear power spectrum. In our demonstration notebooks we always take this from `CAMB`, but it could come from any source. Calculations also require the variance in the linear density field when smoothed on comoving scale $R$: $\sigma^2(R)$. Once again, this function could come from any source, but we take it from `CAMB`.
+Importing via `import pyhalomodel as halo` is nice because the functions then have readable names (e.g., `halo.model`, `halo.profile`). To make non-linear power spectrum predictions using the halo model requires a linear power spectrum. In our demonstration notebooks we always take this from `CAMB`, but it could come from any source. Calculations also require the variance in the linear density field when smoothed on comoving scale $R$: $\sigma^2(R)$. Once again, this function could come from any source, but we take it from `CAMB`.
 
 A typical call to create an instance of a `model` object looks like
 ```
-hmod = halo.model(z, Omega_m, name='Tinker et al. (2010)', Dv=330., dc=1.686, verbose=True)
+model = halo.model(z, Omega_m, name='Tinker et al. (2010)', Dv=330., dc=1.686, verbose=True)
 ```
 where:
 - `z` is the redshift
@@ -40,11 +44,11 @@ Currently supported `name` choices are:
 - `Tinker et al. (2010)`
 - `Despali et al. (2016)`
 
-When the `hmod` instance is created the desired mass function is initialised. The code checks the choice of mass function against the `Dv` and `dc` values and will warn the user if there is an inconsistency.
+When the `model` instance is created the desired mass function is initialised. The code checks the choice of mass function against the `Dv` and `dc` values and will warn the user if there is an inconsistency.
 
 To make a power-spectrum calculation one simply calls:
 ```
-Pk_2h, Pk_1h, Pk_hm = hmod.power_spectrum(k, Pk_lin, M, sigmaM, profiles)
+Pk_2h, Pk_1h, Pk_hm = model.power_spectrum(k, Pk_lin, M, sigmaM, profiles)
 ```
 where: 
 - `k` is an array of comoving Fourier wavenumbers (units: $h\mathrm{Mpc}^{-1}$)
@@ -69,13 +73,13 @@ where
 - `mass_tracer` is a boolean telling the code if the profile corresponds to mass density
 - `discrete_tracer` is a boolean telling the code if it dealing with a discrete tracer or not
 
-The arrays `k` and `M` must correspond to those in the `hmod.power_spectrum` call. If `amp=None` the Fourier profile is assumed to be normalised such that $U(k\to0, M)$ gives the total contribution of the halo to the field
+The arrays `k` and `M` must correspond to those in the `model.power_spectrum` call. If `amp=None` the Fourier profile is assumed to be normalised such that $U(k\to0, M)$ gives the total contribution of the halo to the field
 
 Some examples best illustrate how to create your own halo profiles:
 ```
-matter_profile = halomodel.profile.Fourier(k, M, Uk_matter, amp=M, norm=rho_matter, mass_tracer=True)
+matter_profile = halo.profile.Fourier(k, M, Uk_matter, amp=M, norm=rho_matter, mass_tracer=True)
 ```
-would create a matter profile. Here `Uk_matter` would be the normalised Fourier transform of a matter profile (e.g., an NFW profile), the amplitude of each profile is exactly `M` (because the haloes are the mass), but the field normalisation is `rho_matter` (which can be accessed via `hmod.rhom`) because the field we are interested in is matter overdensity. We use `mass_tracer=True` to tell the code that the profile corresponds to mass. Note that in this case we would get exactly the same `profile` if we fixed the profile amplitude as `amp=M/rho_matter` and the field normalisation as `norm=1.`.
+would create a matter profile. Here `Uk_matter` would be the normalised Fourier transform of a matter profile (e.g., an NFW profile), the amplitude of each profile is exactly `M` (because the haloes are the mass), but the field normalisation is `rho_matter` (which can be accessed via `model.rhom`) because the field we are interested in is matter overdensity. We use `mass_tracer=True` to tell the code that the profile corresponds to mass. Note that in this case we would get exactly the same `profile` if we fixed the profile amplitude as `amp=M/rho_matter` and the field normalisation as `norm=1.`.
 ```
 galaxy_profile = halo.profile.Fourier(k, M, Uk_galaxy, amp=N_galaxy, norm=rho_galaxy, var=var_galaxy, discrete_tracer=True)
 ```
