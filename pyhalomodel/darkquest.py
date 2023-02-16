@@ -6,9 +6,6 @@ import warnings
 from dark_emulator import darkemu
 
 # My imports
-# import constants as const
-# import utility as util
-# import cosmology as cosm
 from . import constants as const
 from . import utility as util
 from . import cosmology as cosm
@@ -21,9 +18,6 @@ npart = 2048    # Cube root of number of simulation particles
 Lbox_HR = 1000. # Box size for high-resolution simulations [Mpc/h]
 Lbox_LR = 2000. # Box size for low-resolution simulations [Mpc/h]
 
-# Maximum redshift
-# zmax = 1.48
-
 # Fiducial cosmology
 wb_fid = 0.02225
 wc_fid = 0.1198
@@ -35,14 +29,6 @@ w_fid = -1.
 # Parameters
 # TODO: Setting this to True messes things up, fix it!
 log_interp_sigma = False
-
-# Accuracy
-# acc_hh = 0.04
-# acc_hm = 0.02
-
-# Distance from low/high boundary when varying cosmology along a parameter-cube direction
-# low_fac = 0.15 
-# high_fac = 0.85
 
 # Beta-NL
 # Source of linear halo bias
@@ -78,7 +64,7 @@ class cosmology():
         self.Om_b = self.wb/self.h**2
         self.Om_c = self.wc/self.h**2
         self.As = np.exp(self.lnAs)/1e10
-        self.m_nu = self.wnu*const.nuconst
+        self.m_nu = self.wnu*const.neutrino_constant
         self.Om_nu = self.wnu/self.h**2
 
     def cosmology_array(self):
@@ -124,9 +110,8 @@ def init_emulator(cpar):
     print()
 
     # Initialise emulator
-    #cparam = np.array([cpar.wb, cpar.wc, cpar.Om_w, cpar.lnAs, cpar.ns, cpar.w]) # Surely this should be a dictionary
     cpar.print()
-    cparam = cpar.cosmology_array()#np.array(cpar.list())
+    cparam = cpar.cosmology_array()
     emu.set_cosmology(cparam) # This does a load of emulator init steps
     cpar.sig8 = emu.get_sigma8()
     print('Derived sigma_8:', cpar.sig8)

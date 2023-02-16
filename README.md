@@ -42,7 +42,7 @@ Currently supported `name` choices are:
 - `Tinker et al. (2010)`
 - `Despali et al. (2016)`
 
-When the `model` instance is created the desired mass function is initialised. The code checks the choice of mass function against the `Dv` and `dc` values and will warn the user if there is an inconsistency.
+When the `model` instance is created the desired mass function is initialised.
 
 To make a power-spectrum calculation one simply calls:
 ```

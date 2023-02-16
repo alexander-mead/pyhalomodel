@@ -20,8 +20,6 @@ sigma_8  = 0.8
 # Redshifts
 zs = [3., 2., 1., 0.5, 0.]
 
-# Halo mass range [Msun/h]
-
 # Halo model
 Mmin, Mmax = 1e9, 1e17
 nM = 256

@@ -5,11 +5,11 @@ from scipy.interpolate import interp1d as interp
 import warnings
 
 # Project imports
-import pyhalomodel.utility as util
-import pyhalomodel.cosmology as cosmology
+from . import utility as util
+from . import cosmology
 
 # To-do list
-# TODO: Add more checks for Dv, dc value compatability with mass functions
+# TODO: Add checks for Dv, dc value compatability with mass functions (complicated with virial definition)
 # TODO: Add covariance between profile amplitudes (low priority; hard and annoying)
 
 # Parameters
@@ -25,6 +25,7 @@ halo_integration = integrate.trapezoid
 #halo_integration = integrate.simps
 
 # W(k) integration scheme integration in r
+# TODO: Fast schemes utillising sin(kR)/kR kernel
 #win_integration = integrate.trapezoid
 #win_integration = integrate.simps
 #win_integration = integrate.romb # Needs 2^m+1 (integer m) evenly-spaced samples in R
@@ -89,7 +90,6 @@ class model():
         elif name in ['Sheth & Tormen (1999)', 'Sheth, Mo & Tormen (2001)']:
             # Sheth & Tormen (1999; https://arxiv.org/abs/astro-ph/9901122)
             # Virial halo definition
-            # TODO: Check for inconsistencies with Dv, dc
             from scipy.special import gamma as Gamma
             p = 0.3
             q = 0.707
@@ -107,7 +107,6 @@ class model():
             # Despali et al. (2016; https://arxiv.org/abs/1507.05627)
             # Note that this mass function is not correctly normalised
             # Virial halo definition
-            # TODO: Check for inconsistencies with Dv, dc
             self.p_ST = 0.2536
             self.q_ST = 0.7689
             self.A_ST = 0.3295*np.sqrt(2.*self.q_ST/np.pi) # Careful with factors of sqrt(2q/pi) in normalisation
@@ -115,16 +114,16 @@ class model():
                 print('p: %1.3f; q: %1.3f; A: %1.4f'%(self.p_ST, self.q_ST, self.A_ST))
         elif name in ['Tinker et al. (2010)']:
             # Tinker et al. (2010; https://arxiv.org/abs/1001.3162)
-            # A range of Delta_v are available
+            # A range of Delta_v are available, interpolate/extrapolate between them
             from math import isclose
             Dv_array = np.array([200., 300., 400., 600., 800., 1200., 1600, 2400., 3200.])
             # Check Delta_v and delta_c values
-            if (Dv < Dv_array[0]) or (Dv > Dv_array[-1]):
-                print('Dv:', Dv) # TODO: Convert to value error?
-                warnings.warn('Dv is outside supported range for Tinker et al. (2010)', RuntimeWarning)
-            if not isclose(dc, 1.686, rel_tol=dc_rel_tol):
-                print('dc:', dc) # TODO: Convert to value error?
-                warnings.warn('dc = 1.686 assumed in Tinker et al. (2010)', RuntimeWarning)
+            # if (Dv < Dv_array[0]) or (Dv > Dv_array[-1]):
+            #     print('Dv:', Dv) # TODO: Convert to value error?
+            #     warnings.warn('Dv is outside supported range for Tinker et al. (2010)', RuntimeWarning)
+            # if not isclose(dc, 1.686, rel_tol=dc_rel_tol):
+            #     print('dc:', dc) # TODO: Convert to value error?
+            #     warnings.warn('dc = 1.686 assumed in Tinker et al. (2010)', RuntimeWarning)
             # Mass function from Table 4
             logDv = np.log(self.Dv)
             logDv_array = np.log(Dv_array)
@@ -207,7 +206,7 @@ class model():
             gamma = self.gamma_Tinker
             phi = self.phi_Tinker
             eta = self.eta_Tinker
-            f1 = (1.+(beta*nu)**(-2.*phi))
+            f1 = 1.+(beta*nu)**(-2.*phi)
             f2 = nu**(2.*eta)
             f3 = np.exp(-gamma*nu**2/2.)
             return alpha*f1*f2*f3
@@ -276,7 +275,7 @@ class model():
             sigma(R): Optional function to get sigma(R) at z of interest
             Pk_lin(k): Optional function to get linear power at z of interest
         '''
-        nu = self._peak_height(M, sigmaM, sigma, Pk_lin) # TODO: Remove sigma and Pk_lin as arguments
+        nu = self._peak_height(M, sigmaM, sigma, Pk_lin)
         R = self.Lagrangian_radius(M)
         if Pk_lin is not None:
             deriv = cosmology.dlnsigma2_dlnR(R, Pk_lin)
@@ -288,7 +287,7 @@ class model():
             logR, logsigmaM = np.log(R), np.log(sigmaM)
             for iR, _logR in enumerate(logR): # TODO: It would be good to avoid loop with a vectorised function here
                 deriv[iR] = 2.*util.derivative_from_samples(_logR, logR, logsigmaM)
-            #dlnsigma2_dlnR = 2.*util.derivative_from_samples(np.log(R), np.log(R), np.log(sigmas)) # Does not work
+            #dlnsigma2_dlnR = 2.*util.derivative_from_samples(np.log(R), np.log(R), np.log(sigmas)) # TODO: Does not work
         dnu_dlnm = -(nu/6.)*deriv
         return self._mass_function_nu(nu)*dnu_dlnm
 
@@ -332,7 +331,7 @@ class model():
             func(M): Function values, evaluated at M, of which to calculate mean
         '''
         if not util.is_array_monotonic(M): raise ValueError('Halo mass array must be increasing monotonically')
-        nu = self._peak_height(M, sigmaM)
+        nu = self._peak_height(M, sigmaM) # TODO: Raise error if nu[0] isn't << 1? or nu[-1] isn't >> 1?
         integrand = (func/M)*self._mass_function_nu(nu)
         return halo_integration(integrand, nu)*self.rhom
 
@@ -345,7 +344,7 @@ class model():
             k: Comoving wavenumbers [h/Mpc]
             Pk_lin(k): Linear power at each wavenumber [(Mpc/h)^3]
             M: Halo masses [Msun/h]
-            sigmaM(M): Optional pre-computed array of linear sigma(M) values corresponding to M
+            sigmaM(M): Standard deviation of density field at scale corresponding to halo mass M
             profiles: Halo profiles from halo_profile class and corresponding field names
             sigma(R): Optional function to evaluate the linear sigma(R)
             beta(k, M1, M2): Optional array of beta_NL values at points M, M, k
@@ -355,7 +354,7 @@ class model():
             verbose: verbosity
         '''
         from time import time
-        t1 = time() # Initial time
+        if verbose: t_start = time() # Initial time
 
         # Checks
         if not util.is_array_monotonic(M): raise ValueError('Halo mass array must be increasing monotonically')
@@ -365,7 +364,7 @@ class model():
             if (M != profile.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
 
         # Create arrays of R (Lagrangian radius) and nu values that correspond to the halo mass
-        nu = self._peak_height(M, sigmaM)
+        nu = self._peak_height(M, sigmaM) # TODO: Raise error if nu[0] isn't << 1? or nu[-1] isn't >> 1?
 
         # Calculate the missing halo-bias from the low-mass part of the integral
         A = 1.-integrate.quad(lambda nu: self._mass_function_nu(nu)*self._linear_bias_nu(nu), nu[0], np.inf)[0]
@@ -418,7 +417,9 @@ class model():
                         elif (not correct_discrete) and subtract_shotnoise:
                             warnings.warn('Warning: Subtracting shot noise while not treating discreteness properly is bad', RuntimeWarning)
                             Pk_1h[:] -= Pk_SN[name_u] # Need to subtract shot noise
-                    if k_trunc is not None: Pk_1h *= 1.-np.exp(-(k/k_trunc)**2) # Suppress one-halo term
+
+                    # Suppress one-halo term
+                    if k_trunc is not None: Pk_1h *= 1.-np.exp(-(k/k_trunc)**2) 
 
                     # Finish
                     Pk_2h_dict[power_name], Pk_1h_dict[power_name] = Pk_2h.copy(), Pk_1h.copy()
@@ -431,8 +432,9 @@ class model():
                     Pk_hm_dict[power_name] = Pk_hm_dict[reverse_name]
 
         # Finish
-        t2 = time() # Final time
-        if verbose: print('Halomodel calculation time [s]:', t2-t1, '\n')
+        if verbose: 
+            t_end = time()
+            print('Halomodel calculation time [s]:', t_end-t_start, '\n')
         return Pk_2h_dict, Pk_1h_dict, Pk_hm_dict
 
 
@@ -472,7 +474,6 @@ class model():
                 massu:bool, massv:bool, A:float) -> float:
         '''
         Evaluates the beta_NL double integral
-        TODO: Loops may be horribly inefficient loops here (outer product?)
         '''
         from numpy import trapz
         integrand = np.zeros((len(nu), len(nu)))
@@ -505,8 +506,8 @@ class model():
             k: Comoving wavenumbers [h/Mpc]
             Pk_lin(k): Linear power at each wavenumber [(Mpc/h)^3]
             M: Halo masses [Msun/h]
-            sigmaM(M): Optional pre-computed array of linear sigma(M) values corresponding to M
-            profiles: A dictionary of halo profiles (halo_profile class) with associated field names
+            sigmaM(M): Standard deviation of density field at scale corresponding to halo mass M
+            profiles: Dictionary of halo profiles (halo_profile class) with associated field names
             M_halo: Halo mass at which to evaluatae cross spectra [Msun/h]
             beta(k, M): Optional array of beta_NL values at points M, k
             sigma(R): Optional function to evaluate the linear sigma(R)
@@ -514,7 +515,7 @@ class model():
         '''
         from time import time
         from scipy.interpolate import interp1d
-        t1 = time() # Initial time
+        if verbose: t_start = time() # Initial time
 
         # Checks
         if not isinstance(profiles, dict): raise TypeError('profiles must be a dictionary')
@@ -524,7 +525,7 @@ class model():
             if (M != profile.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
 
         # Create arrays of R (Lagrangian radius) and nu values that correspond to the halo mass
-        nu = self._peak_height(M, sigmaM)
+        nu = self._peak_height(M, sigmaM) # TODO: Raise error if nu[0] isn't << 1? or nu[-1] isn't >> 1?
 
         # Calculate the missing halo-bias from the low-mass part of the integral
         integrand = self._mass_function_nu(nu)*self._linear_bias_nu(nu)
@@ -555,11 +556,11 @@ class model():
                 Pk_1h[ik] = Wk_halo_mass[name][ik] # Simply the halo profile at M=Mh here
                 Pk_2h_dict[name], Pk_1h_dict[name] = Pk_2h.copy(), Pk_1h.copy()
                 Pk_hm_dict[name] = Pk_2h_dict[name]+Pk_1h_dict[name]
-        t2 = time() # Final time
 
-        if verbose:  
-            print('Halomodel calculation time [s]:', t2-t1, '\n')
-
+        # Finalise
+        if verbose: 
+            t_end = time()
+            print('Halomodel calculation time [s]:', t_end-t_start, '\n')
         return Pk_2h_dict, Pk_1h_dict, Pk_hm_dict
 
 
@@ -646,7 +647,7 @@ def _interpolate_beta_NL(k:np.ndarray, M:np.ndarray, M_small:np.ndarray, beta_NL
                          fill_value=0.) -> np.ndarray:
     '''
     Interpolate beta_NL from a small grid to a large grid for halo-model calculations.
-    TODO: Remove inefficient loops?
+    TODO: Can I remove inefficient loops here?
     '''
     from scipy.interpolate import interp2d
     beta_NL = np.zeros((len(k), len(M), len(M))) # Array for output
@@ -702,7 +703,6 @@ class profile():
     '''
     def __init__(self, k:np.ndarray, M:np.ndarray, Uk:np.ndarray, Wk:np.ndarray, 
                  amplitude=None, normalisation=1., variance=None, mass_tracer=False, discrete_tracer=False):
-        # TODO: Is .copy() necessaary here?
         self.k, self.M = k.copy(), M.copy()
         self.Uk, self.Wk = Uk.copy(), Wk.copy()
         self.amplitude = amplitude.copy() if amplitude is not None else None
@@ -739,15 +739,15 @@ class profile():
         '''
         Class initialisation for Fourier space halo profiles.
         Uk is assumed to be an array Uk(k, M) of the profile Fourier transform.
-        If amp=None then Uk is assumed to be dimensionful, otherwise Uk is assumed dimensionless with Uk(k->0, M) = 1
-        Matter profiles have amp=M (halo mass), galaxy profiles have amp=N (number of galaxies)
+        If amplitude=None then Uk is assumed to be dimensionful, otherwise Uk is assumed dimensionless with Uk(k->0, M) = 1
+        Matter profiles have amplitude=M (halo mass), galaxy profiles have amplitude=N (number of galaxies)
         Args:
-            k: Comoving wavenumbers [h/Mpc] going from low to high
+            k: Comoving wavenumbers [h/Mpc]
             M: Halo masses [Msun/h] going from low to high
-            Uk: 2D array of halo Fourier transform (order k, M)
-            amp: Halo profile amplitudes at halo masses 'M' (e.g., M for mass; N for galaxies)
-            norm: Field normalisation (e.g., rhom for mass, ng for galaxies)
-            var: Variance in the profile amplitude at each halo mass (e.g., N for Poisson galaxies)
+            Uk: Two-dimensional array of halo Fourier transform (order k, M)
+            amplitude: Halo profile amplitudes at halo masses 'M' (e.g., M for mass; N for galaxies)
+            normalisation: Field normalisation (e.g., rhom for mass, mean galaxy number density for galaxies)
+            variance: Variance in the profile amplitude at each halo mass (e.g., N for Poisson galaxies)
             mass_tracer: Are contributions expected for M < M[0] (e.g., matter)?
             discrete_tracer: Does the profile correspond to that of a discrete tracer (e.g., galaxies)?
         '''
@@ -755,10 +755,10 @@ class profile():
         if Uk.shape != (k.shape[0], M.shape[0]): raise ValueError('k, M, array shapes do not match')
         if amplitude is None:
             amplitude = Uk[0, :] # TODO: Integrate to get this? This relies on k[0] being small!
-            Wk = Uk
+            Wk = Uk.copy()
             _Uk = Uk/amplitude
         else:
-            _Uk = Uk
+            _Uk = Uk.copy()
             Wk = (amplitude*Uk)/normalisation
         profile = cls(k, M, _Uk, Wk, amplitude=amplitude, normalisation=normalisation, variance=variance, 
                       mass_tracer=mass_tracer, discrete_tracer=discrete_tracer)
@@ -794,28 +794,28 @@ class profile():
                 W = _halo_window(_k, _M, _rv, _c, differential_profile)
                 if amplitude is None:
                     Wk[ik, iM] = W
-                    Uk[ik, iM]= Wk[ik, iM]/_amplitude[iM] # Normalise
+                    Uk[ik, iM] = Wk[ik, iM]/_amplitude[iM] # Normalise
                 else:
                     Uk[ik, iM] = W/_amplitude[iM]
                     Wk[ik, iM] = Uk[ik, iM]*amplitude[iM]
-        if amplitude is not None: _amplitude = amplitude
+        if amplitude is not None: _amplitude = amplitude.copy()
         profile = cls.Fourier(k, M, Uk, amplitude=_amplitude, normalisation=normalisation, variance=variance, 
                               mass_tracer=mass_tracer, discrete_tracer=discrete_tracer)
         return profile
 
 ### Halo profiles in configuration space ###
 
-def _halo_window(k:float, M:float, rv:float, c:float, differential_profile:callable) -> float:
+def _halo_window(k:float, M:float, rv:float, c:float, diff_profile:callable) -> float:
     '''
     Compute the halo window function via integration given a differential 'density' profile P(r) = 4*pi*r^2*rho(r)
     TODO: This should almost certainly be done with a dedicated integration routine
-    TODO: Can this be made to accept arrays of M, rv, c as arguments?
+    TODO: Can this be made to accept arrays of M, rv, c as arguments? This would avoid loops
     '''
     from scipy.special import spherical_jn
 
     if win_integration in [integrate.trapezoid, integrate.simps, integrate.romb]:
         R = np.linspace(0., rv, nr_win_integration)
-        integrand = spherical_jn(0, k*R)*differential_profile(R, M, rv, c)
+        integrand = spherical_jn(0, k*R)*diff_profile(R, M, rv, c)
         if win_integration in [integrate.romb]: dR = R[1]-R[0]
 
     # Integration
@@ -824,95 +824,53 @@ def _halo_window(k:float, M:float, rv:float, c:float, differential_profile:calla
     elif win_integration in [integrate.romb]:
         Wk = win_integration(integrand, dR)
     elif win_integration in [integrate.quad]:
-        Wk, _ = win_integration(lambda r: spherical_jn(0, k*r)*differential_profile(r, M, rv, c), 0., rv, epsrel=eps_win_integration)
+        Wk, _ = win_integration(lambda r: spherical_jn(0, k*r)*diff_profile(r, M, rv, c), 0., rv, epsrel=eps_win_integration)
     elif win_integration in [integrate.quadrature]:
-        Wk, _ = win_integration(lambda r: spherical_jn(0, k*r)*differential_profile(r, M, rv, c), 0., rv, rtol=eps_win_integration)
+        Wk, _ = win_integration(lambda r: spherical_jn(0, k*r)*diff_profile(r, M, rv, c), 0., rv, rtol=eps_win_integration)
     elif win_integration in [integrate.romberg]:
-        Wk = win_integration(lambda r: spherical_jn(0, k*r)*differential_profile(r, M, rv, c), 0., rv, rtol=eps_win_integration)
+        Wk = win_integration(lambda r: spherical_jn(0, k*r)*diff_profile(r, M, rv, c), 0., rv, rtol=eps_win_integration)
     else:
         raise ValueError('Halo window function integration method not recognised')
     return Wk
 
 
-def differential_profile(r:float, M:float, rv:float, c:float, name=None) -> np.ndarray:
-    '''
-    Differential halo profile as a function of radius from the halo centre
-    Integrating this against r, from 0 to rv, gives the total contribution from the halo
-    This is the density/emissivity profile of a halo multiplied by 4pir^2
-    Defined to avoid infinities when evaluated at r=0
-    Args:
-        r: Comoving radius from halo centre [Mpc/h]
-        M: Halo mass [Msun/h]
-        rv: Comoving halo virial radius [Mpc/h]
-        c: Halo concentration
-        name: String of profile name:
-            'isothermal': 1/r^2
-            'NFW': Nevarro, Frenk & White (1997)
-    '''
-    if name == 'isothermal':
-        profile = _differential_profile_isothermal(r, M, rv)
-    elif name == 'NFW':
-        profile = _differential_profile_NFW(r, M, rv, c)
-    else:
-        raise ValueError('Halo profile not recognised')
-    return profile
-
-# def rho(r:np.ndarray, rv:float, M:float, *args, name=None):
+# def differential_profile(r:float, M:float, rv:float, c:float, name=None) -> np.ndarray:
 #     '''
-#     Profile (density/emissivity) of a halo
+#     Differential halo profile as a function of radius from the halo centre
+#     Integrating this against r, from 0 to rv, gives the total contribution from the halo
+#     This is the density/emissivity profile of a halo multiplied by 4pir^2
+#     Defined to avoid infinities when evaluated at r=0
 #     Args:
-#         r: Radius from halo centre [Mpc/h]
-#         rv: Virial radius [Mpc/h]
+#         r: Comoving radius from halo centre [Mpc/h]
 #         M: Halo mass [Msun/h]
-#         *args: Arguments to be passed to the profile (e.g., concentration)
+#         rv: Comoving halo virial radius [Mpc/h]
+#         c: Halo concentration
 #         name: String of profile name:
+#             'isothermal': 1/r^2
+#             'NFW': Nevarro, Frenk & White (1997)
 #     '''
-#     Prh = Prho(r, rv, M, *args, name=name)
-#     rho = _rho_from_Prho(Prh, r, rv, M, *args)
-#     return rho
-
-# def _rho_from_Prho(Prho, r, rv, M, *args):
-#     '''
-#     Converts a Prho profile to a rho profile (factor of 4pi r^2)
-#     Take care evaluating this at zero (which will give infinity)
-#     '''
-#     return Prho(r, rv, M, *args)/(4.*np.pi*r**2)
-
-def _differential_profile_isothermal(_, M, rv):
-    '''
-    Isothermal density profile multiplied by 4*pi*r^2
-    '''
-    return M/rv
+#     if name == 'isothermal':
+#         profile = _differential_profile_isothermal(r, M, rv)
+#     elif name == 'NFW':
+#         profile = _differential_profile_NFW(r, M, rv, c)
+#     else:
+#         raise ValueError('Halo profile not recognised')
+#     return profile
 
 
-def _differential_profile_NFW(r, M, rv, c):
-    '''
-    NFW density profile multiplied by 4*pi*r^2
-    '''
-    rs = rv/c
-    return (M/c)*(r/rv**2)*(c**3)*_NFW_factor(c)/(1.+r/rs)**2
+# def _differential_profile_isothermal(_:float, M:float, rv:float) -> float:
+#     '''
+#     Isothermal density profile multiplied by 4*pi*r^2
+#     '''
+#     return M/rv
 
-# def Prho_UPP(r, rv, M, r500, z, Om_r, Om_m, Om_w, Om_v, h):
+
+# def _differential_profile_NFW(r:float, M:float, rv:float, c:float) -> float:
 #     '''
-#     Universal pressure profile: UPP
+#     NFW density profile multiplied by 4*pi*r^2
 #     '''
-#     alphap = 0.12
-#     def p(x):
-#         P0 = 6.41
-#         c500 = 1.81
-#         alpha = 1.33
-#         beta = 4.13
-#         gamma = 0.31
-#         y = c500*x
-#         f1 = y**(2.-gamma)
-#         f2 = (1.+y**alpha)**(beta-gamma)/alpha
-#         p = P0*(h/0.7)**(-3./2.)*f1*(r500/c500)**2/f2
-#         return p
-#     a = utility.scale_factor_z(z)
-#     H = utility.H(Om_r, Om_m, Om_w, Om_v, a)
-#     f1 = 1.65*(h/0.7)**2*H**(8./3.)
-#     f2 = (M/2.1e14)**(2./3.+alphap)
-#     return f1*f2*p(r/r500)*4.*np.pi
+#     rs = rv/c
+#     return (M/c)*(r/rv**2)*(c**3)*_NFW_factor(c)/(1.+r/rs)**2
 
 ### ###
 

@@ -29,17 +29,14 @@ def run(zs, Omega_c, Omega_b, Omega_k, h, ns, sigma_8,
     # Run
     results = camb.get_results(pars)
 
-    # Now get the linear power spectrum
-    # TODO: Do I need the interpolator?
+    # Now get the linear power spectrum *interpolator* (note the .P)
     Pk = camb.get_matter_power_interpolator(pars, 
                                             nonlinear=False, 
                                             kmax=kmax_CAMB,
                                             zmax=zmax_CAMB,
                                             var1=camb.model.Transfer_tot,
                                             var2=camb.model.Transfer_tot, 
-                                            ).P
-    # Pk = Pk.P # Single out the linear P(k) interpolator 
-    #Pk = results.get_matter_power_interpolator(nonlinear=False)
+                                            ).P # Note the .P to get the interpolator
     sigma_8 = (results.get_sigma8()[zs.index(0.)]).item()
     if verbose:
         print('Final sigma_8:', sigma_8)
