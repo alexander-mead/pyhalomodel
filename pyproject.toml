@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pyhalomodel"
-version = "0.1.5"
+version = "0.1.6"
 description = "Halo model power spectrum calculations"
 authors = ["Alexander Mead <alexander.j.mead@googlemail.com>"]
 license = "MIT"
