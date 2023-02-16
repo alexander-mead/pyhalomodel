@@ -23,7 +23,7 @@ zs = [3., 2., 1., 0.5, 0.]
 # Halo mass range [Msun/h]
 
 # Halo model
-Mmin = 1e9; Mmax = 1e17
+Mmin, Mmax = 1e9, 1e17
 nM = 256
 Ms = np.logspace(np.log10(Mmin), np.log10(Mmax), nM)
 halo_definition = 'Mvir'
@@ -84,7 +84,7 @@ for short_name, halomodel_name in halomodel_names.items():
         N_gal = N_cen+N_sat; V_gal = V_cen+V_sat
         rho_gal = hmod.average(Ms, sigmaRs, N_cen+N_gal)
         Uk_gal = halo.window_function(ks, rvs, profile='isothermal')
-        galaxy_profile = halo.profile.Fourier(ks, Ms, Uk_gal, amp=N_gal, norm=rho_gal, var=V_gal, discrete_tracer=True)
+        galaxy_profile = halo.profile.Fourier(ks, Ms, Uk_gal, amplitude=N_gal, normalisation=rho_gal, variance=V_gal, discrete_tracer=True)
 
         # Power spectrum calculation
         _, _, Pk = hmod.power_spectrum(ks, Pks_lin, Ms, sigmaRs, {'m': matter_profile, 'g': galaxy_profile})
