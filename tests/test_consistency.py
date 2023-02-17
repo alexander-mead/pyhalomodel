@@ -104,6 +104,8 @@ for short_name, halomodel_name in halomodel_names.items():
 
 ### ###
 
+### Tests ###
+
 class TestPower(unittest.TestCase):
 
     # matter-matter
