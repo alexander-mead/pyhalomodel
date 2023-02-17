@@ -36,7 +36,7 @@ halomodel_names = {
 
 ### ###
 
-### CAMB ###
+### Results ###
 
 Pk_lin, camb_results, Omega_m, _, _ = camb_stuff.run(zs, Omega_c, Omega_b, Omega_k, h, ns, sigma_8)
 
