@@ -2,10 +2,10 @@
 import numpy as np
 import unittest
 
-# Projet imports
+# Project imports
 import pyhalomodel.cosmology as cosmology
 import pyhalomodel.camb_stuff as camb_stuff
-import pyhalomodel as halo
+import pyhalomodel.pyhalomodel as halo
 
 ### Parameters ###
 
@@ -63,7 +63,7 @@ for halomodel_name, halomodel_number in halomodel_names.items():
         dc = cosmology.dc_NakamuraSuto(Omega_mz)
         Dv = cosmology.Dv_BryanNorman(Omega_mz)
         hmod = halo.model(z, Omega_m, name=halomodel_name, Dv=Dv, dc=dc)
-        print(hmod)
+        #print(hmod)
 
         # Halo profile
         Rs = hmod.Lagrangian_radius(Ms)

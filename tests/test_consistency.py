@@ -5,7 +5,7 @@ import unittest
 # Project imports
 import pyhalomodel.cosmology as cosmology
 import pyhalomodel.camb_stuff as camb_stuff
-import pyhalomodel as halo
+import pyhalomodel.pyhalomodel as halo
 
 ### Parameters ###
 

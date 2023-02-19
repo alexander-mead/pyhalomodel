@@ -346,7 +346,6 @@ class model():
             M: Halo masses [Msun/h]
             sigmaM(M): Standard deviation of density field at scale corresponding to halo mass M
             profiles: Halo profiles from halo_profile class and corresponding field names
-            sigma(R): Optional function to evaluate the linear sigma(R)
             beta(k, M1, M2): Optional array of beta_NL values at points M, M, k
             subtract_shotnoise: Should shot noise be subtracted from discrete spectra?
             correct_discrete: Properly treat discrete tracers with <N(N-1)> rather than <N^2>?
@@ -363,8 +362,15 @@ class model():
             if (k != profile.k).all(): raise ValueError('k arrays must all be identical to those in profiles')
             if (M != profile.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
 
-        # Create arrays of R (Lagrangian radius) and nu values that correspond to the halo mass
+        # Create arrays of nu values that correspond to the halo mass
         nu = self._peak_height(M, sigmaM) # TODO: Raise error if nu[0] isn't << 1? or nu[-1] isn't >> 1?
+
+        # Useful information
+        if verbose:
+            print('Redshift:', self.z)
+            print('Halo mass range [log10(Msun/h)]:', np.log10(M[0]), np.log10(M[-1]))
+            print('Peak height range:', nu[0], nu[-1])
+            print('Number of integration points:', len(nu))
 
         # Calculate the missing halo-bias from the low-mass part of the integral
         A = 1.-integrate.quad(lambda nu: self._mass_function_nu(nu)*self._linear_bias_nu(nu), nu[0], np.inf)[0]
@@ -502,6 +508,7 @@ class model():
                                        profiles:dict, M_halo:float, beta=None, verbose=True) -> tuple:
         '''
         Computes the power spectrum of a single tracer crossed with haloes of a single specific mass
+        TODO: Add k_trunc?
         Args:
             k: Comoving wavenumbers [h/Mpc]
             Pk_lin(k): Linear power at each wavenumber [(Mpc/h)^3]
@@ -526,6 +533,12 @@ class model():
 
         # Create arrays of R (Lagrangian radius) and nu values that correspond to the halo mass
         nu = self._peak_height(M, sigmaM) # TODO: Raise error if nu[0] isn't << 1? or nu[-1] isn't >> 1?
+
+        # Useful information
+        if verbose:
+            print('Halo mass range [log10(Msun/h)]:', np.log10(M[0]), np.log10(M[-1]))
+            print('Peak height range:', nu[0], nu[-1])
+            print('Number of integration points:', len(nu))
 
         # Calculate the missing halo-bias from the low-mass part of the integral
         integrand = self._mass_function_nu(nu)*self._linear_bias_nu(nu)
@@ -1033,7 +1046,7 @@ def _concentration_Duffy(M:np.ndarray, z:float, halo_definition='M200') -> np.nd
         A = 5.71; B = -0.084; C = -0.47
     else:
         raise ValueError('Halo definition not recognised')
-    return A*(M/M_piv)**B*(1.+z)**C # Equation (4) in 0804.2486, parameters from 10th row of Table 1
+    return A*(M/M_piv)**B*(1.+z)**C # Equation (4) in 0804.2486
 
 ### ###
 

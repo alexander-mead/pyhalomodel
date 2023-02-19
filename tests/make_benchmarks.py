@@ -1,13 +1,10 @@
 # Standard imports
 import numpy as np
 
-# Third-party imports
-import camb
-
 # Project imports
 import pyhalomodel.camb_stuff as camb_stuff
 import pyhalomodel.cosmology as cosmology
-import pyhalomodel as halo
+import pyhalomodel.pyhalomodel as halo
 
 ### Parameters ###
 
