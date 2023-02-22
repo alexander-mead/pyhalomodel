@@ -1,3 +1,7 @@
+# Standard imports
+import numpy as np
+
+# Third-party imports
 import camb
 
 def run(zs, Omega_c, Omega_b, Omega_k, h, ns, sigma_8, 
