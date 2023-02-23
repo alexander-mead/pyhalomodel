@@ -66,12 +66,12 @@ class model():
         '''
         # Store internal variables
         self.z = z
-        self.a = 1./(1.+z)
+        self.a = cosmology.scalefactor_from_redshift(z)
         self.Om_m = Om_m
         self.name = name
         self.dc = dc
         self.Dv = Dv
-        self.rhom = cosmology.comoving_matter_density(Om_m) # TODO: Change name?
+        self.rhom = cosmology.comoving_matter_density(Om_m)
 
         # Write to screen
         if verbose:
@@ -505,7 +505,7 @@ class model():
 
 
     def power_spectrum_cross_halo_mass(self, k:np.ndarray, Pk_lin:np.ndarray, M:np.ndarray, sigmaM:np.ndarray, 
-                                       profiles:dict, M_halo:float, beta=None, verbose=True) -> tuple:
+                                       profiles:dict, M_halo:float, beta=None, verbose=False) -> tuple:
         '''
         Computes the power spectrum of a single tracer crossed with haloes of a single specific mass
         TODO: Add k_trunc?
@@ -527,7 +527,7 @@ class model():
         # Checks
         if not isinstance(profiles, dict): raise TypeError('profiles must be a dictionary')
         if not util.is_array_monotonic(M): raise ValueError('Halo mass array must be increasing monotonically')
-        for profile in profiles:
+        for profile in profiles.values():
             if (k != profile.k).all(): raise ValueError('k arrays must all be identical to those in profiles')
             if (M != profile.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
 
@@ -543,7 +543,7 @@ class model():
         # Calculate the missing halo-bias from the low-mass part of the integral
         integrand = self._mass_function_nu(nu)*self._linear_bias_nu(nu)
         A = 1.-halo_integration(integrand, nu)
-        if verbose: print('Missing halo-bias-mass from two-halo integrand:', A, '\n')
+        if verbose: print('Missing halo-bias-mass from two-halo integrand:', A)
 
         # Calculate nu(Mh) and W(Mh, k) by interpolating the input arrays
         # NOTE: Wk_halo_mass is not the halo profile, but the profile of the field evaluated at the halo mass!
@@ -573,7 +573,8 @@ class model():
         # Finalise
         if verbose: 
             t_end = time()
-            print('Halomodel calculation time [s]:', t_end-t_start, '\n')
+            print('Halomodel calculation time [s]:', t_end-t_start)
+            print()
         return Pk_2h_dict, Pk_1h_dict, Pk_hm_dict
 
 
