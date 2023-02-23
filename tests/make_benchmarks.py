@@ -19,10 +19,10 @@ w = -1.
 wa = 0.
 m_nu = 0. # [eV]
 sigma_8_set = True
-sigma_8  = 0.8
+sigma_8 = 0.8
 
 # Wavenumber range [h/Mpc]
-kmin = 1e-3; kmax = 1e1
+kmin, kmax = 1e-3, 1e1
 nk = 101
 ks = np.logspace(np.log10(kmin), np.log10(kmax), nk)
 
