@@ -4,6 +4,7 @@ import scipy.integrate as integrate
 
 # Project imports
 from . import constants as const
+from . import utility as util
 
 # Constants
 Dv0 = 18.*np.pi**2 # Delta_v = ~178, EdS halo virial overdensity
@@ -11,6 +12,28 @@ dc0 = (3./20.)*(12.*np.pi)**(2./3.) # delta_c = ~1.686' EdS linear collapse thre
 
 # Parameters
 xmin_Tk = 1e-5 # Scale at which to switch to Taylor expansion approximation in tophat Fourier functions
+
+### Backgroud ###
+
+def redshift_from_scalefactor(a):
+    return -1.+1./a
+
+
+def scalefactor_from_redshift(z):
+    return 1./(1.+z)
+
+
+def comoving_matter_density(Om_m:float) -> float:
+    '''
+    Comoving matter density, not a function of time [Msun/h / (Mpc/h)^3]
+    args:
+        Om_m: Cosmological matter density (at z=0)
+    '''
+    return const.rho_critical*Om_m
+
+### ###
+
+### Linear perturbations ###
 
 def _Tophat_k(x:np.ndarray) -> np.ndarray:
     '''
@@ -32,7 +55,7 @@ def _dTophat_k(x:np.ndarray) -> np.ndarray:
     return np.where(np.abs(x)<xmin, -x/5.+x**3/70., (3./x**4)*((x**2-3.)*np.sin(x)+3.*x*np.cos(x)))
 
 
-def sigmaR(Rs:np.ndarray, Pk_lin:callable, kmin=1e-5, kmax=1e5, nk=1e5, integration_type='brute') -> np.ndarray:
+def sigmaR(Rs:np.ndarray, Pk_lin:callable, kmin=1e-5, kmax=1e5, nk=int(1e5), integration_type='brute') -> np.ndarray:
     '''
     Get the square-root of the variance, sigma(R), in the density field
     at comoving Lagrangian scale R
@@ -41,8 +64,6 @@ def sigmaR(Rs:np.ndarray, Pk_lin:callable, kmin=1e-5, kmax=1e5, nk=1e5, integrat
         sigmaR_arr = _sigmaR_brute_log(Rs, Pk_lin, kmin=kmin, kmax=kmax, nk=nk)
     elif integration_type == 'quad':
         sigmaR_arr = _sigmaR_quad(Rs, Pk_lin)
-    elif integration_type == 'camb':
-        sigmaR_arr = _sigmaR_camb(Rs, Pk_lin)
     else:
         print('Not a recognised integration_type. Try one of the following:')
         print('brute for brute force integration')
@@ -62,7 +83,7 @@ def _sigmaR_integrand(k:np.array, R:float, Pk:callable) -> np.ndarray:
     return Pk(k)*(k**2)*_Tophat_k(k*R)**2
 
 
-def _sigmaR_brute_log(R:float, Pk:callable, kmin=1e-5, kmax=1e5, nk=1e5) -> float:
+def _sigmaR_brute_log(R:float, Pk:callable, kmin=1e-5, kmax=1e5, nk=int(1e5)) -> float:
     '''
     Brute force integration, this is only slightly faster than using a loop
     args:
@@ -72,10 +93,10 @@ def _sigmaR_brute_log(R:float, Pk:callable, kmin=1e-5, kmax=1e5, nk=1e5) -> floa
         kmax: Maximum wavenumber [h/Mpc]
         nk: Number of bins in wavenumber
     '''
-    k_arr = np.logspace(np.log10(kmin), np.log10(kmax), int(nk))
-    dln_k = np.log(k_arr[1]/k_arr[0])
+    k = util.logspace(kmin, kmax, nk)
+    dlnk = np.log(k[1]/k[0])
     def sigmaR_vec(R, Pk):
-        sigmaR= np.sqrt(sum(dln_k*k_arr*_sigmaR_integrand(k_arr, R, Pk))/(2.*np.pi**2))
+        sigmaR= np.sqrt(sum(dlnk*k*_sigmaR_integrand(k, R, Pk))/(2.*np.pi**2))
         return sigmaR
     sigma_func = np.vectorize(sigmaR_vec, excluded=['Pk'])
     return sigma_func(R, Pk)
@@ -97,19 +118,11 @@ def _sigmaR_quad(R:float, Pk:callable) -> float:
     return sigma_func(R, Pk)
 
 
-def _sigmaR_camb(R:float, results) -> np.ndarray:
-    '''
-    Get sigma(R) from CAMB: note CAMB uses Fortran to do the calculations and is therefore faster
-    '''
-    sigmaRs = results.get_sigmaR(R, hubble_units=True, return_R_z=False)
-    return sigmaRs
-
-
 def _dsigmaR_integrand(k:float, R:float, Pk) -> float:
     return Pk(k)*(k**3)*_Tophat_k(k*R)*_dTophat_k(k*R)
 
 
-def dlnsigma2_dlnR(R:float, Pk) -> float:
+def dlnsigma2_dlnR(R:float, Pk:callable) -> float:
     '''
     Calculates d(ln sigma^2)/d(ln R) by integration
     '''
@@ -121,15 +134,9 @@ def dlnsigma2_dlnR(R:float, Pk) -> float:
     dsigma_func = np.vectorize(dsigmaR_vec, excluded=['Pk'])
     return dsigma_func(R, Pk)
 
+### ###
 
-def comoving_matter_density(Om_m:float) -> float:
-    '''
-    Comoving matter density, not a function of time [Msun/h / (Mpc/h)^3]
-    args:
-        Om_m: Cosmological matter density (at z=0)
-    '''
-    return const.rho_critical*Om_m
-
+### Haloes ###
 
 def Lagrangian_radius(M:float, Om_m:float) -> float:
     '''
@@ -147,6 +154,9 @@ def mass(R:float, Om_m:float) -> float:
     '''
     return (4./3.)*np.pi*R**3*comoving_matter_density(Om_m)
 
+### ###
+
+### Spherical collapse ###
 
 def dc_NakamuraSuto(Om_mz:float) -> float:
     '''
@@ -168,3 +178,5 @@ def Dv_BryanNorman(Om_mz:float) -> float:
     x = Om_mz-1.
     Dv = Dv0+82.*x-39.*x**2
     return Dv/Om_mz
+
+### ###

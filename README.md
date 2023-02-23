@@ -10,7 +10,7 @@ For the general user, `pyhalomodel` can be installed using `pip`:
 ```
 pip install pyhalomodel
 ```
-If you you want to modify the source, or use the demo notebooks, then simply clone the repository. You can then create an environment with all necessary dependencies using [poetry](https://python-poetry.org/). From the `pyhalomodel` directory:
+If you you want to modify the source, or use the demo notebooks, then simply clone the repository. You can then create an environment with all necessary dependencies using [poetry](https://python-poetry.org/). From the cloned `pyhalomodel` directory:
 ```
 poetry install
 ```
@@ -117,7 +117,7 @@ in the discrete tracer case it is important to split up `normalisation` and `amp
 Note that the *covariance* in the mean profile amplitude between two different tracers is not currently supported. This can be important in halo-occupation models where galaxies are split into centrals and satellites and the presence of a satellite galaxy is conditional on the halo first containing a central galaxy. We hope to include this in future. Also any *spatial* variance or covariance in halo profiles at fixed mass is not currently supported; we have no plans to include this in future.
 
 ## Notebooks
-There are several jupyter notebooks in the `notebooks` folder giving examples of how to do your own halo-model predictions. The main one is `demo.ipynb`, which gives a run down of most of the features of our software package. As a bonus, we include notebooks that produce (almost) all of the plots in the review paper.
+There are several `jupyter` notebooks in the `notebooks/` directory giving examples of how to do your own halo-model predictions. The main one is `demo.ipynb`, which gives a run down of most of the features of our software package. As a bonus, we include notebooks that produce (almost) all of the plots in the review paper.
 
 ## Citation
 Please add a citation to [Asgari, Mead & Heymans (2023)](https://arxiv.org/) if you use this code.

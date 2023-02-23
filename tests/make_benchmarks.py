@@ -1,12 +1,10 @@
 # Standard imports
 import numpy as np
 
-# Third-party imports
-import camb
-
 # Project imports
+import pyhalomodel.camb_stuff as camb_stuff
 import pyhalomodel.cosmology as cosmology
-import pyhalomodel as halo
+import pyhalomodel.pyhalomodel as halo
 
 ### Parameters ###
 
@@ -21,10 +19,10 @@ w = -1.
 wa = 0.
 m_nu = 0. # [eV]
 sigma_8_set = True
-sigma_8  = 0.8
+sigma_8 = 0.8
 
 # Wavenumber range [h/Mpc]
-kmin = 1e-3; kmax = 1e1
+kmin, kmax = 1e-3, 1e1
 nk = 101
 ks = np.logspace(np.log10(kmin), np.log10(kmax), nk)
 
@@ -55,38 +53,7 @@ halomodel_names = {
 
 ### CAMB ###
 
-# Sets cosmological parameters in camb to calculate the linear power spectrum
-pars = camb.CAMBparams()
-wb, wc = Omega_b*h**2, Omega_c*h**2
-
-# This function sets standard and helium set using BBN consistency
-pars.set_cosmology(ombh2=wb, omch2=wc, H0=100.*h, mnu=m_nu, omk=Omega_k)
-pars.set_dark_energy(w=w, wa=wa, dark_energy_model='ppf') 
-pars.InitPower.set_params(As=As, ns=ns, r=0)
-pars.set_matter_power(redshifts=zs, kmax=kmax_CAMB) # Setup the linear matter power spectrum
-
-# Scale 'As' to be correct for the desired 'sigma_8' value if necessary
-if sigma_8_set:
-    camb_results = camb.get_results(pars)
-    sigma_8_init = (camb_results.get_sigma8()[zs.index(0.)]).item()
-    scaling = (sigma_8/sigma_8_init)**2
-    As *= scaling
-    pars.InitPower.set_params(As=As, ns=ns, r=0)
-
-# Now get the linear power spectrum
-Pk_lin = camb.get_matter_power_interpolator(pars, 
-                                            nonlinear=False, 
-                                            hubble_units=True, 
-                                            k_hunit=True, 
-                                            kmax=kmax_CAMB,
-                                            var1=camb.model.Transfer_tot,
-                                            var2=camb.model.Transfer_tot, 
-                                            zmax=zmax_CAMB,
-                                           )
-Omega_m  = pars.omegam # Extract the matter density
-Pk_lin = Pk_lin.P      # Single out the linear P(k) interpolator
-camb_results = camb.get_results(pars)
-sigma_8 = (camb_results.get_sigma8()[zs.index(0.)]).item()
+Pk_lin, camb_results, Omega_m, _, _ = camb_stuff.run(zs, Omega_c, Omega_b, Omega_k, h, ns, sigma_8)
 
 ### ###
 
@@ -122,7 +89,7 @@ for short_name, halomodel_name in halomodel_names.items():
         N_gal = N_cen+N_sat; V_gal = V_cen+V_sat
         rho_gal = hmod.average(Ms, sigmaRs, N_cen+N_gal)
         Uk_gal = halo.window_function(ks, rvs, profile='isothermal')
-        galaxy_profile = halo.profile.Fourier(ks, Ms, Uk_gal, amp=N_gal, norm=rho_gal, var=V_gal, discrete_tracer=True)
+        galaxy_profile = halo.profile.Fourier(ks, Ms, Uk_gal, amplitude=N_gal, normalisation=rho_gal, variance=V_gal, discrete_tracer=True)
 
         # Power-spectrum calculation
         _, _, Pk = hmod.power_spectrum(ks, Pks_lin, Ms, sigmaRs, {'m': matter_profile, 'g': galaxy_profile})
