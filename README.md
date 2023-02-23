@@ -10,7 +10,7 @@ For the general user, `pyhalomodel` can be installed using `pip`:
 ```
 pip install pyhalomodel
 ```
-If you you want to modify the source, or use the demo notebooks, then simply clone the repository. You can then create an environment with all necessary dependencies using [poetry](https://python-poetry.org/). From the `pyhalomodel` directory:
+If you you want to modify the source, or use the demo notebooks, then simply clone the repository. You can then create an environment with all necessary dependencies using [poetry](https://python-poetry.org/). From the cloned `pyhalomodel` directory:
 ```
 poetry install
 ```
