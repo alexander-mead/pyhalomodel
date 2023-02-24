@@ -337,7 +337,8 @@ class model():
 
 
     def power_spectrum(self, k:np.ndarray, Pk_lin:np.ndarray, M:np.ndarray, sigmaM:np.ndarray, profiles:dict, 
-                       beta=None, subtract_shotnoise=True, correct_discrete=True, k_trunc=None, verbose=False) -> tuple:
+                       beta=None, simple_twohalo=False, subtract_shotnoise=True, correct_discrete=True, 
+                       k_trunc=None, verbose=False) -> tuple:
         '''
         Computes power spectra given that halo model. Returns the two-halo, one-halo and sum terms.
         Args:
@@ -347,6 +348,7 @@ class model():
             sigmaM(M): Standard deviation of density field at scale corresponding to halo mass M
             profiles: Halo profiles from halo_profile class and corresponding field names
             beta(k, M1, M2): Optional array of beta_NL values at points M, M, k
+            simple_twohalo: Should the scale-dependence of the two-halo term be ignored?
             subtract_shotnoise: Should shot noise be subtracted from discrete spectra?
             correct_discrete: Properly treat discrete tracers with <N(N-1)> rather than <N^2>?
             k_trunc: None or wavenumber [h/Mpc] at which to truncate the one-halo term at large scales
@@ -356,6 +358,7 @@ class model():
         if verbose: t_start = time() # Initial time
 
         # Checks
+        if simple_twohalo and (beta is not None): raise ValueError('A simple two-halo term is not compatible with non-linear halo bias')
         if not util.is_array_monotonic(M): raise ValueError('Halo mass array must be increasing monotonically')
         if not isinstance(profiles, dict): raise TypeError('profiles must be a dictionary')
         for profile in profiles.values():
@@ -389,19 +392,31 @@ class model():
         # Loop over halo profiles/fields
         for iu, (name_u, profile_u) in enumerate(profiles.items()): 
             for iv, (name_v, profile_v) in enumerate(profiles.items()):
+
+                # Naming conventions
                 power_name = name_u+'-'+name_v # Name for this two-point combination
                 reverse_name = name_v+'-'+name_u # Reverse name to avoid double computations for cross terms
+
+                # Two-halo term if scale-dependence ignored
+                if simple_twohalo:
+                    Pk_2h = self._Pk_2h(Pk_lin, M, nu, 
+                                        profile_u.amplitude/profile_u.normalisation, 
+                                        profile_v.amplitude/profile_v.normalisation,
+                                        profile_u.mass_tracer, profile_v.mass_tracer, A)
+
+                # Power calculation for this tracer pair
                 if verbose: print('Calculating power:', power_name)
                 if iu <= iv:
                     for ik, _Pk_lin in enumerate(Pk_lin): # Loop over wavenumbers
 
                         # Two-halo term, treat non-linear halo bias carefully
-                        if beta is None: 
-                            Pk_2h[ik] = self._Pk_2h(_Pk_lin, M, nu, profile_u.Wk[ik, :], profile_v.Wk[ik, :],
-                                                    profile_u.mass_tracer, profile_v.mass_tracer, A)
-                        else:
-                            Pk_2h[ik] = self._Pk_2h(_Pk_lin, M, nu, profile_u.Wk[ik, :], profile_v.Wk[ik, :],
-                                                    profile_u.mass_tracer, profile_v.mass_tracer, A, beta[ik, :, :])
+                        if not simple_twohalo:
+                            if beta is None: 
+                                Pk_2h[ik] = self._Pk_2h(_Pk_lin, M, nu, profile_u.Wk[ik, :], profile_v.Wk[ik, :],
+                                                        profile_u.mass_tracer, profile_v.mass_tracer, A)
+                            else:
+                                Pk_2h[ik] = self._Pk_2h(_Pk_lin, M, nu, profile_u.Wk[ik, :], profile_v.Wk[ik, :],
+                                                        profile_u.mass_tracer, profile_v.mass_tracer, A, beta=beta[ik, :, :])
 
                         # One-halo term, treat discrete auto case carefully
                         if name_u == name_v: 
@@ -425,7 +440,7 @@ class model():
                             Pk_1h[:] -= Pk_SN[name_u] # Need to subtract shot noise
 
                     # Suppress one-halo term
-                    if k_trunc is not None: Pk_1h *= 1.-np.exp(-(k/k_trunc)**2) 
+                    if k_trunc is not None: Pk_1h *= 1.-np.exp(-(k/k_trunc)**2)
 
                     # Finish
                     Pk_2h_dict[power_name], Pk_1h_dict[power_name] = Pk_2h.copy(), Pk_1h.copy()
@@ -504,11 +519,10 @@ class model():
         return integral*self.rhom**2
 
 
-    def power_spectrum_cross_halo_mass(self, k:np.ndarray, Pk_lin:np.ndarray, M:np.ndarray, sigmaM:np.ndarray, 
-                                       profiles:dict, M_halo:float, beta=None, verbose=False) -> tuple:
+    def cross_halo_spectrum(self, k:np.ndarray, Pk_lin:np.ndarray, M:np.ndarray, sigmaM:np.ndarray, 
+                            profiles:dict, M_halo:float, beta=None, simple_twohalo=False, k_trunc=None, verbose=False) -> tuple:
         '''
         Computes the power spectrum of a single tracer crossed with haloes of a single specific mass
-        TODO: Add k_trunc?
         Args:
             k: Comoving wavenumbers [h/Mpc]
             Pk_lin(k): Linear power at each wavenumber [(Mpc/h)^3]
@@ -517,7 +531,8 @@ class model():
             profiles: Dictionary of halo profiles (halo_profile class) with associated field names
             M_halo: Halo mass at which to evaluatae cross spectra [Msun/h]
             beta(k, M): Optional array of beta_NL values at points M, k
-            sigma(R): Optional function to evaluate the linear sigma(R)
+            simple_twohalo: Should the scale-dependence of the two-halo term be ignored?
+            k_trunc: None or wavenumber [h/Mpc] at which to truncate the one-halo term at large scales
             verbose: verbosity
         '''
         from time import time
@@ -525,6 +540,7 @@ class model():
         if verbose: t_start = time() # Initial time
 
         # Checks
+        if simple_twohalo and (beta is not None): raise ValueError('A simple two-halo term is not compatible with non-linear halo bias')
         if not isinstance(profiles, dict): raise TypeError('profiles must be a dictionary')
         if not util.is_array_monotonic(M): raise ValueError('Halo mass array must be increasing monotonically')
         for profile in profiles.values():
@@ -561,14 +577,26 @@ class model():
         Pk_2h_dict, Pk_1h_dict, Pk_hm_dict = {}, {}, {}
         Pk_2h, Pk_1h = np.zeros_like(k), np.zeros_like(k)
         for name, profile in profiles.items():
+
+            # Two-halo term if scale-dependence ignored
+            if simple_twohalo:
+                Pk_2h = self._Pk_2h_hu(Pk_lin, M, nu_halo, nu, profile.amplitude/profile.normalisation, profile.mass_tracer, A)
+
+            # Loop over wavenumbers
             for ik, _Pk_lin in enumerate(Pk_lin):
-                if beta is None:
-                    Pk_2h[ik] = self._Pk_2h_hu(_Pk_lin, M, nu_halo, nu, profile.Wk[ik, :], profile.mass_tracer, A)
-                else:
-                    Pk_2h[ik] = self._Pk_2h_hu(_Pk_lin, M, nu_halo, nu, profile.Wk[ik, :], profile.mass_tracer, A, beta[ik, :])
+                if not simple_twohalo:
+                    if beta is None:
+                        Pk_2h[ik] = self._Pk_2h_hu(_Pk_lin, M, nu_halo, nu, profile.Wk[ik, :], profile.mass_tracer, A)
+                    else:
+                        Pk_2h[ik] = self._Pk_2h_hu(_Pk_lin, M, nu_halo, nu, profile.Wk[ik, :], profile.mass_tracer, A, beta[ik, :])
                 Pk_1h[ik] = Wk_halo_mass[name][ik] # Simply the halo profile at M=Mh here
-                Pk_2h_dict[name], Pk_1h_dict[name] = Pk_2h.copy(), Pk_1h.copy()
-                Pk_hm_dict[name] = Pk_2h_dict[name]+Pk_1h_dict[name]
+            
+            # Suppress one-halo term
+            if k_trunc is not None: Pk_1h *= 1.-np.exp(-(k/k_trunc)**2)
+
+            # Finish
+            Pk_2h_dict[name], Pk_1h_dict[name] = Pk_2h.copy(), Pk_1h.copy()
+            Pk_hm_dict[name] = Pk_2h_dict[name]+Pk_1h_dict[name]
 
         # Finalise
         if verbose: 
