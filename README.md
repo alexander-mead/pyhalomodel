@@ -1,6 +1,8 @@
 # Halo model
 This repository is home to the `pyhalomodel` code that was written as part of the [Asgari, Mead & Heymans (2023)](https://arxiv.org/) halo-model review paper. The software is written entirely in *python*, with extendability and reusability in mind. The purpose of this software is to take some of the drudgery out of performing basic calculations using the halo model. While the integrals that the halo model requires the researcher to evaluate are simple, in practice the changes of variables required to integrate halo profiles against halo mass functions can be confusing and tedious. In our experience this confusion has led to bugs and misunderstandings over the years, and our hope for this software is to reduce the proliferation of these somewhat. Our software can produce power spectra for *any* combinations of tracers, and simply requires halo profiles for the tracers to be specified. These could be matter profiles, galaxy profiles, or anything else, for example electron-pressure or HI profiles.
 
+You might also be interested in this pure `Python` implementation of [HMcode](https://github.com/alexander-mead/pyhmcode).
+
 ## Dependencies
 * `numpy`
 * `scipy`
