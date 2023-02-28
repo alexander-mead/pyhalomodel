@@ -25,7 +25,7 @@ halo_integration = integrate.trapezoid
 #halo_integration = integrate.simps
 
 # W(k) integration scheme integration in r
-# TODO: Fast schemes utillising sin(kR)/kR kernel
+# TODO: Fast schemes utilising sin(kR)/kR kernel
 #win_integration = integrate.trapezoid
 #win_integration = integrate.simps
 #win_integration = integrate.romb # Needs 2^m+1 (integer m) evenly-spaced samples in R
@@ -285,7 +285,7 @@ class model():
         else:
             deriv = np.zeros(len(R))
             logR, logsigmaM = np.log(R), np.log(sigmaM)
-            for iR, _logR in enumerate(logR): # TODO: It would be good to avoid loop with a vectorised function here
+            for iR, _logR in enumerate(logR): # TODO: Avoid loop with a vectorised function here
                 deriv[iR] = 2.*util.derivative_from_samples(_logR, logR, logsigmaM)
             #dlnsigma2_dlnR = 2.*util.derivative_from_samples(np.log(R), np.log(R), np.log(sigmas)) # TODO: Does not work
         dnu_dlnm = -(nu/6.)*deriv
