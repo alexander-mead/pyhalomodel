@@ -1,7 +1,7 @@
 # Halo model
-This repository is home to the `pyhalomodel` code that was written as part of the [Asgari, Mead & Heymans (2023)](https://arxiv.org/) halo-model review paper. The software is written entirely in `Python`, with extendability and reusability in mind. The purpose of this software is to take some of the drudgery out of performing basic calculations using the halo model. While the integrals that the halo model requires the researcher to evaluate are simple, in practice the changes of variables required to integrate halo profiles against halo mass functions can be confusing and tedious. In our experience this confusion has led to bugs and misunderstandings over the years, and our hope for this software is to reduce the proliferation of these somewhat. Our software can produce power spectra for *any* combinations of tracers, and simply requires halo profiles for the tracers to be specified. These could be matter profiles, galaxy profiles, or anything else, for example electron-pressure or HI profiles.
+This repository is home to the `pyhalomodel` package, which was written as part of the [Asgari, Mead & Heymans (2023)](https://arxiv.org/) halo-model review paper. The software is written entirely in `Python`, with extendability and reusability in mind. The purpose of this software is to take some of the drudgery out of performing basic calculations using the halo model. While the integrals that the halo model requires the researcher to evaluate are simple, in practice the changes of variables required to integrate halo profiles against halo mass functions can be confusing and tedious. In our experience this confusion has led to bugs and misunderstandings over the years, and our hope for this software is to reduce the proliferation of these somewhat. Our software can produce power spectra for *any* combinations of tracers, and simply requires halo profiles for the tracers to be specified. These could be matter profiles, galaxy profiles, or anything else, for example electron-pressure or HI profiles.
 
-You might also be interested in this pure `Python` implementation of [HMcode](https://github.com/alexander-mead/pyhmcode).
+You might also be interested in this pure `Python` implementation of [HMcode](https://github.com/alexander-mead/pyhmcode), which makes use of the `pyhalomodel` package.
 
 ## Dependencies
 * `numpy`
@@ -16,7 +16,7 @@ If you you want to modify the source, or use the demo notebooks, then simply clo
 ```
 poetry install
 ```
-The demo notebooks require some additional dependencies: `camb`, `dark-emulator`, `ipykernel`, `matplotlib` and these will be installed in the environment automatically. You can also install without `poetry`, either system wide or using another environment manager; we include a `requirements.txt`.
+The demo notebooks require some additional dependencies: `camb`; `dark-emulator`; `ipykernel`; `matplotlib`; `halomod`. These will be installed in the environment automatically. You can also install without `poetry`, either system wide or using another environment manager; we include a `requirements.txt`.
 
 ## Usage
 Start a script with
@@ -119,7 +119,7 @@ in the discrete tracer case it is important to split up `normalisation` and `amp
 Note that the *covariance* in the mean profile amplitude between two different tracers is not currently supported. This can be important in halo-occupation models where galaxies are split into centrals and satellites and the presence of a satellite galaxy is conditional on the halo first containing a central galaxy. We hope to include this in future. Also any *spatial* variance or covariance in halo profiles at fixed mass is not currently supported; we have no plans to include this in future.
 
 ## Notebooks
-There are several `jupyter` notebooks in the `notebooks/` directory giving examples of how to do your own halo-model predictions. The main one is `demo.ipynb`, which gives a run down of most of the features of our software package. As a bonus, we include notebooks that produce (almost) all of the plots in the review paper.
+There are several `jupyter` notebooks in the `notebooks/` directory giving examples of how to use the code. The first one to try is `demo-basic.ipynb`, which gives an overview of the main features of `pyhalomodel`. As a bonus, we include notebooks that produce (almost) all of the plots from the review paper.
 
 ## Citation
 Please add a citation to [Asgari, Mead & Heymans (2023)](https://arxiv.org/) if you use this code.

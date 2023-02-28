@@ -16,7 +16,7 @@ def derivative_from_samples(x:float, xs:np.array, fs:np.array) -> float:
     '''
     Calculates the derivative of the function f(x) which is sampled as fs at values xs
     Approximates the function as quadratic using the samples and Legendre polynomials
-    TODO: Can this be made to work for array x argument?
+    TODO: Can this be made to work for array x argument? Vectorize?
     Args:
         x: Point at which to calculate the derivative
         xs: Sample locations

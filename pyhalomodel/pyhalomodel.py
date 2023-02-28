@@ -11,6 +11,7 @@ from . import cosmology
 # To-do list
 # TODO: Add checks for Dv, dc value compatability with mass functions (complicated with virial definition)
 # TODO: Add covariance between profile amplitudes (low priority; hard and annoying)
+# TODO: Raise errors if halo masses do not cover relevant portion of the mass function (usually a high-z problem)
 
 # Parameters
 dc_rel_tol = 1e-3    # Relative tolerance for checking 'closeness' of delta_c
@@ -25,7 +26,7 @@ halo_integration = integrate.trapezoid
 #halo_integration = integrate.simps
 
 # W(k) integration scheme integration in r
-# TODO: Fast schemes utilising sin(kR)/kR kernel
+# TODO: Implement fast schemes utilising sin(kR)/kR kernel
 #win_integration = integrate.trapezoid
 #win_integration = integrate.simps
 #win_integration = integrate.romb # Needs 2^m+1 (integer m) evenly-spaced samples in R
@@ -119,10 +120,10 @@ class model():
             Dv_array = np.array([200., 300., 400., 600., 800., 1200., 1600, 2400., 3200.])
             # Check Delta_v and delta_c values
             # if (Dv < Dv_array[0]) or (Dv > Dv_array[-1]):
-            #     print('Dv:', Dv) # TODO: Convert to value error?
+            #     print('Dv:', Dv)
             #     warnings.warn('Dv is outside supported range for Tinker et al. (2010)', RuntimeWarning)
             # if not isclose(dc, 1.686, rel_tol=dc_rel_tol):
-            #     print('dc:', dc) # TODO: Convert to value error?
+            #     print('dc:', dc)
             #     warnings.warn('dc = 1.686 assumed in Tinker et al. (2010)', RuntimeWarning)
             # Mass function from Table 4
             logDv = np.log(self.Dv)
@@ -264,30 +265,21 @@ class model():
         return F*self.rhom/M**2
 
 
-    def multiplicity_function(self, M:np.ndarray, sigmaM:np.ndarray, sigma=None, Pk_lin=None) -> np.ndarray:
+    def multiplicity_function(self, M:np.ndarray, sigmaM:np.ndarray) -> np.ndarray:
         '''
         Calculates M^2 n(M) / rhobar, the so-called halo multiplicity function
         Note that this is dimensionless
-        TODO: Remove sigma and Pk_lin as arguments?
         Args:
             M: Halo masses [Msun/h]
             sigmaM(M): Standard deviation in overdensity on mass scale M
-            sigma(R): Optional function to get sigma(R) at z of interest
-            Pk_lin(k): Optional function to get linear power at z of interest
         '''
-        nu = self._peak_height(M, sigmaM, sigma, Pk_lin)
+        nu = self._peak_height(M, sigmaM)
         R = self.Lagrangian_radius(M)
-        if Pk_lin is not None:
-            deriv = cosmology.dlnsigma2_dlnR(R, Pk_lin)
-        elif sigma is not None:
-            eps = eps_deriv_mf; dR = R*eps # Uses numerical derivative
-            deriv = 2.*util.log_derivative(sigma, R, dR)
-        else:
-            deriv = np.zeros(len(R))
-            logR, logsigmaM = np.log(R), np.log(sigmaM)
-            for iR, _logR in enumerate(logR): # TODO: Avoid loop with a vectorised function here
-                deriv[iR] = 2.*util.derivative_from_samples(_logR, logR, logsigmaM)
-            #dlnsigma2_dlnR = 2.*util.derivative_from_samples(np.log(R), np.log(R), np.log(sigmas)) # TODO: Does not work
+        deriv = np.zeros(len(R))
+        logR, logsigmaM = np.log(R), np.log(sigmaM)
+        for iR, _logR in enumerate(logR): # TODO: Avoid loop with a vectorised function here
+            deriv[iR] = 2.*util.derivative_from_samples(_logR, logR, logsigmaM)
+        #dlnsigma2_dlnR = 2.*util.derivative_from_samples(np.log(R), np.log(R), np.log(sigmas)) # Does not work
         dnu_dlnm = -(nu/6.)*deriv
         return self._mass_function_nu(nu)*dnu_dlnm
 
@@ -541,17 +533,18 @@ class model():
 
         # Checks
         if simple_twohalo and (beta is not None): raise ValueError('A simple two-halo term is not compatible with non-linear halo bias')
-        if not isinstance(profiles, dict): raise TypeError('profiles must be a dictionary')
         if not util.is_array_monotonic(M): raise ValueError('Halo mass array must be increasing monotonically')
+        if not isinstance(profiles, dict): raise TypeError('profiles must be a dictionary')
         for profile in profiles.values():
             if (k != profile.k).all(): raise ValueError('k arrays must all be identical to those in profiles')
             if (M != profile.M).all(): raise ValueError('Mass arrays must be identical to those in profiles')
 
-        # Create arrays of R (Lagrangian radius) and nu values that correspond to the halo mass
+        # Create arrays of nu values that correspond to the halo mass
         nu = self._peak_height(M, sigmaM) # TODO: Raise error if nu[0] isn't << 1? or nu[-1] isn't >> 1?
 
         # Useful information
         if verbose:
+            print('Redshift:', self.z)
             print('Halo mass range [log10(Msun/h)]:', np.log10(M[0]), np.log10(M[-1]))
             print('Peak height range:', nu[0], nu[-1])
             print('Number of integration points:', len(nu))
@@ -632,20 +625,11 @@ class model():
         return b_halo*integral*self.rhom
 
 
-    def _peak_height(self, M:np.ndarray, sigmaM:np.ndarray, sigma=None, Pk_lin=None) -> np.ndarray:
+    def _peak_height(self, M:np.ndarray, sigmaM:np.ndarray) -> np.ndarray:
         '''
         Calculate peak-height (nu) values from array of halo masses
         '''
-        if sigmaM is not None:
-            nu = self.dc/sigmaM # Use the provided sigma(R) values or...
-        elif sigma is not None:
-            R = self.Lagrangian_radius(M)
-            nu = self.dc/sigma(R) # ...otherwise evaluate the provided sigma(R) function or...
-        elif Pk_lin is not None:
-            R = self.Lagrangian_radius(M)
-            nu = self.dc/cosmology.sigmaR(R, Pk_lin, integration_type='quad') # ...otherwise integrate
-        else:
-            raise ValueError('Error, you need to specify (at least) one of Pk_lin, sigma or sigmaM') 
+        nu = self.dc/sigmaM
         return nu
 
 
@@ -990,52 +974,6 @@ def matter_profile(k:np.ndarray, M:np.ndarray, rv:np.ndarray, c:np.ndarray, Om_m
     rhom = cosmology.comoving_matter_density(Om_m)
     Uk = window_function(k, rv, c, profile='NFW')
     return profile.Fourier(k, M, Uk, amplitude=M, normalisation=rhom, mass_tracer=True)
-
-
-# def galaxy_profile(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, rhog:float, 
-#     HOD_method='Zheng et al. (2005)') -> halo_profile:
-#     '''
-#     Pre-configured galaxy profile\n
-#     # TODO: Need rhog here, but to get this requires integrating Ns, which would require hmod as argument
-#     Args:
-#         ks: Array of wavenumbers [h/Mpc]
-#         Ms: Array of halo masses [Msun/h]
-#         rvs: Array of halo virial radii [Mpc/h]
-#         cs: Array of halo concentrations
-#         rhog: Galaxy number density []
-#         HOD_method: String for HOD choice
-#     '''
-#     N_cen, N_sat = HOD_mean(Ms, method=HOD_method)
-#     N_gal = N_cen+N_sat
-#     V_cen, V_sat, _ = HOD_variance(N_cen, N_sat)
-#     V_gal = V_cen+V_sat
-#     Uk_gal = halo_window_function(ks, rvs, profile='isothermal')
-#     #Uk_gal = halo_window_function(ks, rvs, cs, profile='NFW')
-#     profile = halo_profile(ks, Ms, N_gal, Uk_gal, rhog, var=V_gal, mass=False, discrete=True)
-#     return profile
-
-
-# def central_satellite_profiles(ks:np.ndarray, Ms:np.ndarray, rvs:np.ndarray, cs:np.ndarray, rhog:float, 
-#     HOD_method='Zheng et al. (2005)') -> tuple:
-#     '''
-#     Pre-configured central and satellite galaxy profiles\n
-#     # TODO: Need rhog here, but to get this requires integrating Ns, which would require hmod as argument
-#     Args:
-#         ks: Array of wavenumbers [h/Mpc]
-#         Ms: Array of halo masses [Msun/h]
-#         rvs: Array of halo virial radii [Mpc/h]
-#         cs: Array of halo concentrations
-#         rhog: Galaxy number density []
-#         HOD_method: String for HOD choice
-#     '''
-#     N_cen, N_sat = HOD_mean(Ms, method=HOD_method)
-#     V_cen, V_sat, _ = HOD_variance(N_cen, N_sat)
-#     Uk_cen = halo_window_function(ks, rvs, profile='delta')
-#     Uk_sat = halo_window_function(ks, rvs, profile='isothermal')
-#     #Uk_sat = halo_window_function(ks, rvs, cs, profile='NFW')
-#     profile_cen = halo_profile(ks, Ms, N_cen, Uk_cen, rhog, var=V_cen, mass=False, discrete=True)
-#     profile_sat = halo_profile(ks, Ms, N_sat, Uk_sat, rhog, var=V_sat, mass=False, discrete=True)
-#     return profile_cen, profile_sat
 
 ### ###
 
