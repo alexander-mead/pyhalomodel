@@ -91,31 +91,31 @@ class TestPower(unittest.TestCase):
     def test_PS74():
         name = 'Press & Schecter (1974)'
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result/benchmark, 1., decimal=2)
+            np.testing.assert_allclose(result/benchmark, 1., rtol=2e-3)
 
     @staticmethod
     def test_ST99():
         name = 'Sheth & Tormen (1999)'
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result/benchmark, 1., decimal=2)
+            np.testing.assert_allclose(result/benchmark, 1., rtol=2e-3)
 
     @staticmethod
     def test_SMT01():
         name = 'Sheth, Mo & Tormen (2001)'
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result/benchmark, 1., decimal=2)
+            np.testing.assert_allclose(result/benchmark, 1., rtol=2e-3)
 
     @staticmethod
     def test_Tinker2010():
         name = 'Tinker et al. (2010)'
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result/benchmark, 1., decimal=2)
+            np.testing.assert_allclose(result/benchmark, 1., rtol=2e-3)
 
     @staticmethod
     def test_Despali2016():
         name = 'Despali et al. (2016)'
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result/benchmark, 1., decimal=2)
+            np.testing.assert_allclose(result/benchmark, 1., rtol=2e-3)
 
 ### ###
 

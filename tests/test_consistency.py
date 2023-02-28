@@ -115,35 +115,35 @@ class TestPower(unittest.TestCase):
     def test_mm_PS74():
         name = 'Press & Schecter (1974)'; n = 1
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=5)
+            np.testing.assert_allclose(result[:, n]/benchmark[:, n], 1., rtol=1e-5)
 
     # ST '99
     @staticmethod
     def test_mm_ST99():
         name = 'Sheth & Tormen (1999)'; n = 1
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=5)
+            np.testing.assert_allclose(result[:, n]/benchmark[:, n], 1., rtol=1e-5)
 
     # SMT '01
     @staticmethod
     def test_mm_SMT01():
         name = 'Sheth, Mo & Tormen (2001)'; n = 1
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=5)
+            np.testing.assert_allclose(result[:, n]/benchmark[:, n], 1., rtol=1e-5)
 
     # Tinker '10
     @staticmethod
     def test_mm_Tinker2010():
         name = 'Tinker et al. (2010)'; n = 1
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=5)
+            np.testing.assert_allclose(result[:, n]/benchmark[:, n], 1., rtol=1e-5)
 
     # Despali '16
     @staticmethod
     def test_mm_Despali2016():
         name = 'Despali et al. (2016)'; n = 1
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=5)
+            np.testing.assert_allclose(result[:, n]/benchmark[:, n], 1., rtol=1e-5)
 
     # matter-galaxy
 
@@ -152,35 +152,35 @@ class TestPower(unittest.TestCase):
     def test_mg_PS74():
         name = 'Press & Schecter (1974)'; n = 2
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=5)
+            np.testing.assert_allclose(result[:, n]/benchmark[:, n], 1., rtol=1e-5)
 
     # ST '99
     @staticmethod
     def test_mg_ST99():
         name = 'Sheth & Tormen (1999)'; n = 2
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=5)
+            np.testing.assert_allclose(result[:, n]/benchmark[:, n], 1., rtol=1e-5)
 
     # SMT '01
     @staticmethod
     def test_mg_SMT01():
         name = 'Sheth, Mo & Tormen (2001)'; n = 2
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=5)
+            np.testing.assert_allclose(result[:, n]/benchmark[:, n], 1., rtol=1e-5)
 
     # Tinker '10
     @staticmethod
     def test_mg_Tinker2010():
         name = 'Tinker et al. (2010)'; n = 2
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=5)
+            np.testing.assert_allclose(result[:, n]/benchmark[:, n], 1., rtol=1e-5)
 
     # Despali '16
     @staticmethod
     def test_mg_Despali2016():
         name = 'Despali et al. (2016)'; n = 2
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=5)
+            np.testing.assert_allclose(result[:, n]/benchmark[:, n], 1., rtol=1e-5)
 
     # galaxy-galaxy
 
@@ -189,35 +189,35 @@ class TestPower(unittest.TestCase):
     def test_gg_PS74():
         name = 'Press & Schecter (1974)'; n = 3
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=5)
+            np.testing.assert_allclose(result[:, n]/benchmark[:, n], 1., rtol=1e-5)
 
     # ST '99
     @staticmethod
     def test_gg_ST99():
         name = 'Sheth & Tormen (1999)'; n = 3
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=5)
+            np.testing.assert_allclose(result[:, n]/benchmark[:, n], 1., rtol=1e-5)
 
     # SMT '01
     @staticmethod
     def test_gg_SMT01():
         name = 'Sheth, Mo & Tormen (2001)'; n = 3
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=5)
+            np.testing.assert_allclose(result[:, n]/benchmark[:, n], 1., rtol=1e-5)
 
     # Tinker '10
     @staticmethod
     def test_gg_Tinker2010():
         name = 'Tinker et al. (2010)'; n = 3
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=5)
+            np.testing.assert_allclose(result[:, n]/benchmark[:, n], 1., rtol=1e-5)
 
     # Despali '16
     @staticmethod
     def test_gg_Despali2016():
         name = 'Despali et al. (2016)'; n = 3
         for benchmark, result in zip(benchmarks_dict[name], results_dict[name]):
-            np.testing.assert_array_almost_equal(result[:, n]/benchmark[:, n], 1., decimal=5)
+            np.testing.assert_allclose(result[:, n]/benchmark[:, n], 1., rtol=1e-5)
 
 ### ###
 
