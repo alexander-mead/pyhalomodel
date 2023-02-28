@@ -5,7 +5,6 @@ description = "Halo model power spectrum calculations"
 authors = ["Alexander Mead <alexander.j.mead@googlemail.com>"]
 license = "MIT"
 readme = "README.md"
-homepage = "https://github.com/alexander-mead/pyhalomodel"
 repository = "https://github.com/alexander-mead/pyhalomodel"
 keywords = ["cosmology", "halo model", "dark matter", "dark energy", "galaxies"]
 include = [
