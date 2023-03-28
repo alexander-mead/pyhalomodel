@@ -1,5 +1,8 @@
-# Halo model
-This repository is home to the `pyhalomodel` package, which was written as part of the [Asgari, Mead & Heymans (2023)](https://arxiv.org/) halo-model review paper. The software is written entirely in `Python`, with extendability and reusability in mind. The purpose of this software is to take some of the drudgery out of performing basic calculations using the halo model. While the integrals that the halo model requires the researcher to evaluate are simple, in practice the changes of variables required to integrate halo profiles against halo mass functions can be confusing and tedious. In our experience this confusion has led to bugs and misunderstandings over the years, and our hope for this software is to reduce the proliferation of these somewhat. Our software can produce power spectra for *any* combinations of tracers, and simply requires halo profiles for the tracers to be specified. These could be matter profiles, galaxy profiles, or anything else, for example electron-pressure or HI profiles.
+# `pyhalomodel`
+
+![image](https://user-images.githubusercontent.com/9140961/228342339-e1f908c7-e2ac-46c2-bb2a-1878bbfa3cf0.png)
+
+This repository is home to the `pyhalomodel` package, which was written as part of the [Asgari, Mead & Heymans (2023)](https://arxiv.org/abs/2303.08752) halo-model review paper. The software is written entirely in `Python`, with extendability and reusability in mind. The purpose of this software is to take some of the drudgery out of performing basic calculations using the halo model. While the integrals that the halo model requires the researcher to evaluate are simple, in practice the changes of variables required to integrate halo profiles against halo mass functions can be confusing and tedious. In our experience this confusion has led to bugs and misunderstandings over the years, and our hope for this software is to reduce the proliferation of these somewhat. Our software can produce power spectra for *any* combinations of tracers, and simply requires halo profiles for the tracers to be specified. These could be matter profiles, galaxy profiles, or anything else, for example electron-pressure or HI profiles.
 
 You might also be interested in this pure `Python` implementation of [HMcode](https://github.com/alexander-mead/HMcode-python), which makes use of the `pyhalomodel` package.
 
@@ -122,4 +125,4 @@ Note that the *covariance* in the mean profile amplitude between two different t
 There are several `jupyter` notebooks in the `notebooks/` directory giving examples of how to use the code. The first one to try is `demo-basic.ipynb`, which gives an overview of the main features of `pyhalomodel`. As a bonus, we include notebooks that produce (almost) all of the plots from the review paper.
 
 ## Citation
-Please add a citation to [Asgari, Mead & Heymans (2023)](https://arxiv.org/) if you use this code.
+Please add a citation to [Asgari, Mead & Heymans (2023)](https://arxiv.org/abs/2303.08752) if you use this code.
