@@ -3,6 +3,12 @@ __pycache__/
 .ipynb_checkpoints/
 dist/
 
+# MacOS
+.DS_Store
+
+# Poetry
+poetry.lock
+
 # Plots
 *.pdf
 
