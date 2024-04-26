@@ -6,6 +6,9 @@ dist/
 # MacOS
 .DS_Store
 
+# Poetry
+poetry.lock
+
 # Plots
 *.pdf
 
